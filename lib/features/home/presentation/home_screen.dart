@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/car.dart';
+import '../../../domain/models/owner.dart';
+import '../../../domain/models/year_month.dart';
 import '../../../domain/models/major_repair_reserve.dart';
 import '../../../domain/models/ownership_goal.dart';
 import '../../../domain/models/planned_expense.dart';
@@ -16,6 +18,8 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
     required this.car,
+    required this.owner,
+    required this.referenceMonth,
     required this.goal,
     required this.reserve,
     required this.plannedExpenses,
@@ -23,6 +27,8 @@ class HomeScreen extends StatelessWidget {
   });
 
   final Car car;
+  final Owner owner;
+  final YearMonth referenceMonth;
   final OwnershipGoal goal;
   final MajorRepairReserve reserve;
   final List<PlannedExpense> plannedExpenses;
@@ -112,7 +118,16 @@ class HomeScreen extends StatelessWidget {
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute<void>(
-                        builder: (context) => FutureTimelineScreen(goal: goal),
+                        builder: (context) => FutureTimelineScreen(
+                          currentYear: referenceMonth.year,
+                          currentOwnerAge: _completedYears(owner.birthMonth),
+                          currentCarAge: _completedYears(
+                            car.firstRegistrationMonth,
+                          ),
+                          currentMileageKm: car.currentMileageKm,
+                          annualMileageKm: car.annualMileageKm,
+                          plannedExpenses: plannedExpenses,
+                        ),
                       ),
                     ),
                     child: const Text('未来タイムラインを見る'),
@@ -209,6 +224,11 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+
+  int _completedYears(YearMonth start) =>
+      referenceMonth.year -
+      start.year -
+      (referenceMonth.month < start.month ? 1 : 0);
 }
 
 class _SavingTargetCard extends StatelessWidget {

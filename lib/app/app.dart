@@ -16,6 +16,8 @@ class KeepMyCarApp extends StatelessWidget {
     themeMode: ThemeMode.light,
     home: HomeScreen(
       car: goldenSample.car,
+      owner: goldenSample.owner,
+      referenceMonth: goldenSample.referenceMonth,
       goal: goldenSample.goal,
       reserve: goldenSample.reserve,
       plannedExpenses: goldenSample.plannedExpenses,
