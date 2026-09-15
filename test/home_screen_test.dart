@@ -65,7 +65,13 @@ void main() {
           expect(rect.bottom, lessThanOrEqualTo(800));
         }
       }
-      for (final label in [...content, '予定費を追加', '設定']) {
+      for (final label in [
+        ...content,
+        '未来タイムラインを見る',
+        '詳しく見る',
+        '予定費を見る・追加する',
+        '設定',
+      ]) {
         await tester.ensureVisible(find.text(label));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: label);
@@ -77,15 +83,18 @@ void main() {
     });
   }
 
-  testWidgets('Add expense and settings are accessible no-op controls', (
+  testWidgets('Add expense and settings are accessible navigation controls', (
     tester,
   ) async {
     await tester.pumpWidget(const KeepMyCarApp());
     final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
-    final button = find.widgetWithText(FilledButton, '予定費を追加');
+    final button = find.widgetWithText(FilledButton, '予定費を見る・追加する');
     await tester.ensureVisible(button);
     expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
     await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, '愛車予定費'), findsOneWidget);
+    await tester.pageBack();
     await tester.pumpAndSettle();
     final settings = find.ancestor(
       of: find.text('設定'),
@@ -94,6 +103,9 @@ void main() {
     await tester.ensureVisible(settings);
     expect(tester.getSize(settings).height, greaterThanOrEqualTo(48));
     await tester.tap(settings);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, '計画設定'), findsOneWidget);
+    await tester.pageBack();
     await tester.pumpAndSettle();
     expect(tester.widget<HomeScreen>(find.byType(HomeScreen)), same(home));
     expect(tester.takeException(), isNull);

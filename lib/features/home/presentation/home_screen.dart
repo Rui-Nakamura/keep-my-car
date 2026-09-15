@@ -5,6 +5,10 @@ import '../../../domain/models/car.dart';
 import '../../../domain/models/major_repair_reserve.dart';
 import '../../../domain/models/ownership_goal.dart';
 import '../../../domain/models/planned_expense.dart';
+import '../../timeline/presentation/future_timeline_screen.dart';
+import '../../planned_expenses/presentation/planned_expenses_screen.dart';
+import '../../repair_reserve/presentation/repair_reserve_screen.dart';
+import '../../settings/presentation/plan_settings_screen.dart';
 import 'home_display_data.dart';
 import 'home_format.dart';
 
@@ -103,6 +107,16 @@ class HomeScreen extends StatelessWidget {
                     '約${formatKm(displayData.approximateMileageAtGoalKm)}',
                     style: text.titleLarge,
                   ),
+                  const SizedBox(height: AppSpacing.lg),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (context) => FutureTimelineScreen(goal: goal),
+                      ),
+                    ),
+                    child: const Text('未来タイムラインを見る'),
+                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.section),
@@ -115,6 +129,17 @@ class HomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text('${reserve.targetAge}歳までに', style: text.bodyLarge),
+                  const SizedBox(height: AppSpacing.lg),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (context) =>
+                            RepairReserveScreen(reserve: reserve),
+                      ),
+                    ),
+                    child: const Text('詳しく見る'),
+                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.section),
@@ -136,7 +161,17 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.md),
                   Text('${plannedExpenses.length}件の予定', style: text.bodyMedium),
                   const SizedBox(height: AppSpacing.xl),
-                  FilledButton(onPressed: () {}, child: const Text('予定費を追加')),
+                  FilledButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (context) => PlannedExpensesScreen(
+                          plannedExpenses: plannedExpenses,
+                        ),
+                      ),
+                    ),
+                    child: const Text('予定費を見る・追加する'),
+                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.xxxl),
@@ -144,7 +179,12 @@ class HomeScreen extends StatelessWidget {
               Semantics(
                 button: true,
                 child: InkWell(
-                  onTap: () {},
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (context) => PlanSettingsScreen(),
+                    ),
+                  ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(
                       minHeight: AppSizes.buttonMinHeight,
