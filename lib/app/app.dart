@@ -18,6 +18,7 @@ class KeepMyCarApp extends StatelessWidget {
       car: goldenSample.car,
       owner: goldenSample.owner,
       referenceMonth: goldenSample.referenceMonth,
+      currentCarFundYen: goldenSample.currentCarFundYen,
       goal: goldenSample.goal,
       reserve: goldenSample.reserve,
       plannedExpenses: goldenSample.plannedExpenses,

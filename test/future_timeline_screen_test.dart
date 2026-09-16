@@ -289,6 +289,7 @@ void main() {
               ),
               owner: const Owner(birthMonth: YearMonth(1970, 4)),
               referenceMonth: reference,
+              currentCarFundYen: original.currentCarFundYen,
               goal: original.goal,
               reserve: original.reserve,
               plannedExpenses: original.plannedExpenses,

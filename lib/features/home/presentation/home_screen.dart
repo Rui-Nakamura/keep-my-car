@@ -20,6 +20,7 @@ class HomeScreen extends StatelessWidget {
     required this.car,
     required this.owner,
     required this.referenceMonth,
+    required this.currentCarFundYen,
     required this.goal,
     required this.reserve,
     required this.plannedExpenses,
@@ -29,6 +30,7 @@ class HomeScreen extends StatelessWidget {
   final Car car;
   final Owner owner;
   final YearMonth referenceMonth;
+  final int currentCarFundYen;
   final OwnershipGoal goal;
   final MajorRepairReserve reserve;
   final List<PlannedExpense> plannedExpenses;
@@ -149,8 +151,17 @@ class HomeScreen extends StatelessWidget {
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute<void>(
-                        builder: (context) =>
-                            RepairReserveScreen(reserve: reserve),
+                        builder: (context) => RepairReserveScreen(
+                          referenceMonth: referenceMonth,
+                          currentCarFundYen: currentCarFundYen,
+                          ownershipGoal: goal,
+                          reserve: reserve,
+                          reserveTargetMonth: YearMonth(
+                            owner.birthMonth.year + reserve.targetAge,
+                            owner.birthMonth.month,
+                          ),
+                          plannedExpenses: plannedExpenses,
+                        ),
                       ),
                     ),
                     child: const Text('詳しく見る'),
