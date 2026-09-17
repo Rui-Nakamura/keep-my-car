@@ -1,71 +1,68 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_spacing.dart';
+import '../../../app/update_feedback.dart';
+import '../future_timeline_calculator.dart';
 import '../../../domain/models/planned_expense.dart';
 import '../../home/presentation/home_format.dart';
 
 class FutureTimelineScreen extends StatelessWidget {
   const FutureTimelineScreen({
     super.key,
-    required this.currentYear,
-    required this.currentOwnerAge,
-    required this.currentCarAge,
-    required this.currentMileageKm,
-    required this.annualMileageKm,
-    required this.plannedExpenses,
+    required this.years,
+    this.updatePending = false,
+    this.onViewed,
   });
 
-  final int currentYear;
-  final int currentOwnerAge;
-  final int currentCarAge;
-  final int currentMileageKm;
-  final int annualMileageKm;
-  final List<PlannedExpense> plannedExpenses;
+  final List<TimelineYearData> years;
+  final bool updatePending;
+  final VoidCallback? onViewed;
 
   @override
-  Widget build(BuildContext context) {
-    // Sort a copy, with original positions preserving same-month input order.
-    final sorted =
-        plannedExpenses.indexed.where((entry) {
-          final year = entry.$2.plannedMonth.year;
-          return year >= currentYear && year < currentYear + 10;
-        }).toList()..sort((a, b) {
-          final order = a.$2.plannedMonth.compareTo(b.$2.plannedMonth);
-          return order != 0 ? order : a.$1.compareTo(b.$1);
-        });
-    final expensesByYear = <int, List<PlannedExpense>>{};
-    for (final entry in sorted) {
-      (expensesByYear[entry.$2.plannedMonth.year] ??= []).add(entry.$2);
-    }
-    final text = Theme.of(context).textTheme;
-    return Scaffold(
-      appBar: AppBar(title: const Text('未来タイムライン')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenMargin,
-            vertical: AppSpacing.xxl,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('これから10年間の計画', style: text.headlineLarge),
-              const SizedBox(height: AppSpacing.xxl),
-              for (var offset = 0; offset < 10; offset++)
-                _TimelineYear(
-                  year: currentYear + offset,
-                  ownerAge: currentOwnerAge + offset,
-                  carAge: currentCarAge + offset,
-                  mileageKm: currentMileageKm + annualMileageKm * offset,
-                  isCurrent: offset == 0,
-                  expenses: expensesByYear[currentYear + offset] ?? const [],
-                ),
-            ],
+  Widget build(BuildContext context) => UpdateFeedback(
+    pending: updatePending,
+    duration: const Duration(milliseconds: 1600),
+    onViewed: onViewed,
+    builder: (context, emphasis) {
+      final text = Theme.of(context).textTheme;
+      return Scaffold(
+        appBar: AppBar(title: const Text('未来タイムライン')),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenMargin,
+              vertical: AppSpacing.xxl,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('これから10年間の計画', style: text.headlineLarge),
+                const SizedBox(height: AppSpacing.xxl),
+                if (updatePending) ...[
+                  const Text(
+                    '未来タイムラインを更新しました',
+                    key: ValueKey('timeline-update-text'),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                for (final year in years)
+                  _TimelineYear(
+                    year: year.year,
+                    ownerAge: year.ownerAge,
+                    carAge: year.carAge,
+                    mileageKm: year.mileageKm,
+                    isCurrent: year.isCurrent,
+                    expenses: year.expenses,
+                    totalYen: year.totalYen,
+                    emphasis: emphasis,
+                  ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
 }
 
 class _TimelineYear extends StatelessWidget {
@@ -76,6 +73,8 @@ class _TimelineYear extends StatelessWidget {
     required this.mileageKm,
     required this.isCurrent,
     required this.expenses,
+    required this.totalYen,
+    required this.emphasis,
   });
 
   final int year;
@@ -84,6 +83,8 @@ class _TimelineYear extends StatelessWidget {
   final int mileageKm;
   final bool isCurrent;
   final List<PlannedExpense> expenses;
+  final int totalYen;
+  final double emphasis;
 
   @override
   Widget build(BuildContext context) {
@@ -116,17 +117,21 @@ class _TimelineYear extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.md,
-            runSpacing: AppSpacing.xs,
-            children: [
-              Text(
-                '$ownerAge歳',
-                style: milestone ? text.titleMedium : text.bodyLarge,
-              ),
-              Text('車齢$carAge年', style: text.bodyLarge),
-              Text('約${formatKm(mileageKm)}', style: text.bodyLarge),
-            ],
+          Container(
+            key: ValueKey('timeline-emphasis-$year'),
+            color: theme.colorScheme.primary.withValues(alpha: 0.10 * emphasis),
+            child: Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.xs,
+              children: [
+                Text(
+                  '$ownerAge歳',
+                  style: milestone ? text.titleMedium : text.bodyLarge,
+                ),
+                Text('車齢$carAge年', style: text.bodyLarge),
+                Text('約${formatKm(mileageKm)}', style: text.bodyLarge),
+              ],
+            ),
           ),
           const SizedBox(height: AppSpacing.lg),
           if (expenses.isEmpty)
@@ -157,10 +162,7 @@ class _TimelineYear extends StatelessWidget {
                   ],
                 ),
               ),
-            Text(
-              '年間予定費 ${formatYen(expenses.fold<int>(0, (sum, expense) => sum + expense.amountYen))}',
-              style: text.titleMedium,
-            ),
+            Text('年間予定費 ${formatYen(totalYen)}', style: text.titleMedium),
           ],
         ],
       ),

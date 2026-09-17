@@ -6,6 +6,7 @@ import 'package:keep_my_car/domain/models/major_repair_reserve.dart';
 import 'package:keep_my_car/domain/models/ownership_goal.dart';
 import 'package:keep_my_car/domain/models/planned_expense.dart';
 import 'package:keep_my_car/domain/models/year_month.dart';
+import 'package:keep_my_car/domain/repair_reserve_calculator.dart';
 import 'package:keep_my_car/features/repair_reserve/presentation/repair_reserve_screen.dart';
 
 const explanation = '登録済みの予定費を支払いながら、65歳時点で大型修理用の資金を確保できるように計算しています。';
@@ -32,12 +33,15 @@ Future<void> pumpReserve(
         child: child!,
       ),
       home: RepairReserveScreen(
-        referenceMonth: const YearMonth(2035, 2),
-        currentCarFundYen: fund,
         ownershipGoal: const OwnershipGoal(targetAge: 70),
         reserve: MajorRepairReserve(amountYen: reserve, targetAge: 65),
-        reserveTargetMonth: target,
-        plannedExpenses: expenses,
+        result: calculateRepairReserve(
+          referenceMonth: const YearMonth(2035, 2),
+          currentCarFundYen: fund,
+          reserveTargetMonth: target,
+          largeRepairReserveYen: reserve,
+          plannedExpenses: expenses,
+        ),
       ),
     ),
   );

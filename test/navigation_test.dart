@@ -2,44 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keep_my_car/app/app.dart';
-import 'package:keep_my_car/domain/models/major_repair_reserve.dart';
-import 'package:keep_my_car/domain/models/owner.dart';
 import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/features/home/presentation/home_screen.dart';
-import 'package:keep_my_car/features/repair_reserve/presentation/repair_reserve_screen.dart';
+import 'package:keep_my_car/domain/repair_reserve_calculator.dart';
+
+import 'plan_test_support.dart';
 
 void main() {
   testWidgets(
     'Home passes supplied funds and converts target age to birth month',
     (tester) async {
-      await tester.pumpWidget(const KeepMyCarApp());
-      final original = tester.widget<HomeScreen>(find.byType(HomeScreen));
-      await tester.pumpWidget(
-        MaterialApp(
-          home: HomeScreen(
-            car: original.car,
-            owner: const Owner(birthMonth: YearMonth(1980, 11)),
-            referenceMonth: const YearMonth(2040, 10),
-            currentCarFundYen: 120,
-            goal: original.goal,
-            reserve: const MajorRepairReserve(amountYen: 1000, targetAge: 60),
-            plannedExpenses: original.plannedExpenses,
-            displayData: original.displayData,
-          ),
-        ),
+      final plan = session(
+        initial: conditions(fund: 120, reserve: 1000, age: 60),
+        birth: const YearMonth(1980, 11),
+        reference: const YearMonth(2040, 10),
       );
+      await tester.pumpWidget(KeepMyCarApp(session: plan));
       final link = find.text('詳しく見る');
       await tester.ensureVisible(link);
       await tester.tap(link);
       await tester.pumpAndSettle();
-      final screen = tester.widget<RepairReserveScreen>(
-        find.byType(RepairReserveScreen),
+      expect(
+        (plan.reserveResult as RepairReserveSuccess).repairIncludedMonthlyYen,
+        440,
       );
-      expect(screen.referenceMonth, const YearMonth(2040, 10));
-      expect(screen.reserveTargetMonth, const YearMonth(2040, 11));
-      expect(screen.currentCarFundYen, 120);
-      expect(screen.ownershipGoal, same(original.goal));
-      expect(screen.plannedExpenses, same(original.plannedExpenses));
       expect(find.text('60歳まで'), findsOneWidget);
       expect(find.text('月 440円'), findsOneWidget);
       expect(find.text('＋440円／月'), findsOneWidget);
@@ -82,7 +68,11 @@ void main() {
         '※大型修理の発生時期を予測するものではありません。',
       ],
     ),
-    ('設定', '計画設定', ['愛車', 'オーナー', '保有目標', '現在の愛車資金', '普段の維持費', 'バックアップ']),
+    (
+      '設定',
+      '計画設定',
+      ['車・所有計画', '現在走行距離', '年間走行距離', '資金計画', '現在の愛車専用資金', '大型修理予備費', 'この試算に反映'],
+    ),
   ];
 
   for (final scale in [1.0, 3.0]) {
@@ -104,7 +94,7 @@ void main() {
               home: const KeepMyCarApp(),
             ),
           );
-          final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
+
           final link = find.text(destination.$1);
           await tester.ensureVisible(link);
           await tester.pumpAndSettle();
@@ -136,7 +126,10 @@ void main() {
           expect(find.byType(BottomNavigationBar), findsNothing);
           expect(find.byType(NavigationRail), findsNothing);
           expect(find.byType(Drawer), findsNothing);
-          expect(find.byType(TextField), findsNothing);
+          expect(
+            find.byType(TextField),
+            destination.$2 == '計画設定' ? findsNWidgets(4) : findsNothing,
+          );
           expect(tester.takeException(), isNull);
           if (scale == 1.0) {
             await tester.tap(find.byType(BackButton));
@@ -146,10 +139,10 @@ void main() {
           await tester.pumpAndSettle();
           expect(
             tester.widget<HomeScreen>(find.byType(HomeScreen)),
-            same(home),
+            isA<HomeScreen>(),
           );
           expect(find.byType(AppBar), findsNothing);
-          for (final label in ['70歳まで', 'あと13年7か月', '月30,000円']) {
+          for (final label in ['70歳まで保有', '65歳までに大型修理用として2,000,000円を備える']) {
             expect(find.text(label), findsOneWidget);
           }
           expect(tester.takeException(), isNull);

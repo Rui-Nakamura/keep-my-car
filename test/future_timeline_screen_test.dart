@@ -3,11 +3,12 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:keep_my_car/app/app.dart';
 import 'package:keep_my_car/app/theme/app_theme.dart';
-import 'package:keep_my_car/domain/models/car.dart';
-import 'package:keep_my_car/domain/models/owner.dart';
 import 'package:keep_my_car/domain/models/planned_expense.dart';
 import 'package:keep_my_car/domain/models/year_month.dart';
-import 'package:keep_my_car/features/home/presentation/home_screen.dart';
+import 'package:keep_my_car/features/timeline/future_timeline_calculator.dart';
+
+import 'plan_test_support.dart';
+
 import 'package:keep_my_car/features/timeline/presentation/future_timeline_screen.dart';
 
 PlannedExpense expense(String name, int year, int month, int amount) =>
@@ -44,12 +45,14 @@ Future<void> pumpTimeline(
         child: child!,
       ),
       home: FutureTimelineScreen(
-        currentYear: year,
-        currentOwnerAge: age,
-        currentCarAge: 8,
-        currentMileageKm: 45000,
-        annualMileageKm: 4000,
-        plannedExpenses: expenses,
+        years: calculateFutureTimeline(
+          currentYear: year,
+          currentOwnerAge: age,
+          currentCarAge: 8,
+          currentMileageKm: 45000,
+          annualMileageKm: 4000,
+          plannedExpenses: expenses,
+        ),
       ),
     ),
   );
@@ -274,26 +277,13 @@ void main() {
     testWidgets(
       'Home computes completed years at $reference and keeps stored mileage',
       (tester) async {
-        await tester.pumpWidget(const KeepMyCarApp());
-        final original = tester.widget<HomeScreen>(find.byType(HomeScreen));
         await tester.pumpWidget(
-          MaterialApp(
-            theme: AppTheme.light,
-            home: HomeScreen(
-              car: const Car(
-                name: 'テスト車',
-                firstRegistrationMonth: YearMonth(2020, 4),
-                currentMileageKm: 12345,
-                mileageCheckedMonth: YearMonth(2029, 1),
-                annualMileageKm: 2000,
-              ),
-              owner: const Owner(birthMonth: YearMonth(1970, 4)),
-              referenceMonth: reference,
-              currentCarFundYen: original.currentCarFundYen,
-              goal: original.goal,
-              reserve: original.reserve,
-              plannedExpenses: original.plannedExpenses,
-              displayData: original.displayData,
+          KeepMyCarApp(
+            session: session(
+              initial: conditions(mileage: 12345, annual: 2000),
+              birth: const YearMonth(1970, 4),
+              reference: reference,
+              registration: const YearMonth(2020, 4),
             ),
           ),
         );

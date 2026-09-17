@@ -1,45 +1,48 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/plan_session.dart';
 import '../../../app/theme/app_spacing.dart';
-import '../../../domain/models/car.dart';
-import '../../../domain/models/owner.dart';
-import '../../../domain/models/year_month.dart';
-import '../../../domain/models/major_repair_reserve.dart';
+import '../../../domain/models/plan_conditions.dart';
 import '../../../domain/models/ownership_goal.dart';
-import '../../../domain/models/planned_expense.dart';
+import '../../../domain/models/major_repair_reserve.dart';
+import '../../../domain/plan_conditions_validation.dart';
 import '../../timeline/presentation/future_timeline_screen.dart';
 import '../../planned_expenses/presentation/planned_expenses_screen.dart';
 import '../../repair_reserve/presentation/repair_reserve_screen.dart';
 import '../../settings/presentation/plan_settings_screen.dart';
-import 'home_display_data.dart';
 import 'home_format.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
-    required this.car,
-    required this.owner,
-    required this.referenceMonth,
-    required this.currentCarFundYen,
-    required this.goal,
-    required this.reserve,
-    required this.plannedExpenses,
-    required this.displayData,
+    required this.session,
+    required this.onApply,
+    required this.onNavigate,
+    required this.onTimelineViewed,
+    required this.onReserveViewed,
   });
+  final PlanSession session;
+  final Map<PlanField, PlanInputError> Function(PlanConditions) onApply;
+  final VoidCallback onNavigate;
+  final VoidCallback onTimelineViewed;
+  final VoidCallback onReserveViewed;
 
-  final Car car;
-  final Owner owner;
-  final YearMonth referenceMonth;
-  final int currentCarFundYen;
-  final OwnershipGoal goal;
-  final MajorRepairReserve reserve;
-  final List<PlannedExpense> plannedExpenses;
-  final HomeDisplayData displayData;
+  void _open(BuildContext context, Widget screen) {
+    // The screen is constructed before the builder, fixing this visit's snapshot.
+    onNavigate();
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final nextExpense = plannedExpenses.first;
+    final conditions = session.conditions;
+    final notice = switch (session.homeUpdate) {
+      HomeUpdate.timeline => '未来タイムラインを更新しました',
+      HomeUpdate.reserve => '大型修理への備えを更新しました',
+      HomeUpdate.both => '未来タイムラインと大型修理への備えを更新しました',
+      null => null,
+    };
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -52,182 +55,81 @@ class HomeScreen extends StatelessWidget {
             children: [
               Text('Keep My Car', style: text.headlineLarge),
               const SizedBox(height: AppSpacing.xxl),
-              Text('${goal.targetAge}歳まで', style: text.displayLarge),
-              const SizedBox(height: AppSpacing.sm),
               Text(
-                'あと${displayData.remainingYears}年${displayData.remainingMonths}か月',
+                '${conditions.ownershipTargetAge}歳まで保有',
+                style: text.displayMedium,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                '${conditions.reserveTargetAge}歳までに大型修理用として${formatYen(conditions.largeRepairReserveYen)}を備える',
                 style: text.titleLarge,
               ),
-              const SizedBox(height: AppSpacing.md),
-              Text(car.name, style: text.bodyLarge),
-              const SizedBox(height: AppSpacing.xxl),
-              _SavingTargetCard(
-                amountYen: displayData.displayRequiredMonthlySavingYen,
-              ),
-              const SizedBox(height: AppSpacing.section),
-              _HomeSection(
-                title: '愛車のために見ておきたい月額',
-                children: [
-                  Text(
-                    '約${formatYen(displayData.displayMonthlyCarBudgetYen)} / 月',
-                    style: text.headlineLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text('普段の維持費', style: text.bodyLarge),
-                  Text(
-                    '約${formatYen(displayData.displayMonthlyMaintenanceYen)}',
-                    style: text.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text('将来への積立', style: text.bodyLarge),
-                  Text(
-                    formatYen(displayData.displayRequiredMonthlySavingYen),
-                    style: text.titleMedium,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.section),
-              _HomeSection(
-                title: '積立額の決め手',
-                children: [
-                  Text(
-                    formatMonth(displayData.bottleneckMonth),
-                    style: text.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text('この時点までに必要な資金が、現在の積立目安を決めています。', style: text.bodyLarge),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.section),
-              _HomeSection(
-                title: '未来の自分と愛車',
-                children: [
-                  Text('${goal.targetAge}歳のあなた', style: text.headlineLarge),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text('愛車', style: text.bodyLarge),
-                  Text(
-                    '約${displayData.approximateCarAgeAtGoalYears}年目',
-                    style: text.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text('走行距離', style: text.bodyLarge),
-                  Text(
-                    '約${formatKm(displayData.approximateMileageAtGoalKm)}',
-                    style: text.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (context) => FutureTimelineScreen(
-                          currentYear: referenceMonth.year,
-                          currentOwnerAge: _completedYears(owner.birthMonth),
-                          currentCarAge: _completedYears(
-                            car.firstRegistrationMonth,
-                          ),
-                          currentMileageKm: car.currentMileageKm,
-                          annualMileageKm: car.annualMileageKm,
-                          plannedExpenses: plannedExpenses,
-                        ),
-                      ),
-                    ),
-                    child: const Text('未来タイムラインを見る'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.section),
-              _HomeSection(
-                title: '大型修理への備え',
-                children: [
-                  Text(
-                    formatReserveYen(reserve.amountYen),
-                    style: text.headlineLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text('${reserve.targetAge}歳までに', style: text.bodyLarge),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (context) => RepairReserveScreen(
-                          referenceMonth: referenceMonth,
-                          currentCarFundYen: currentCarFundYen,
-                          ownershipGoal: goal,
-                          reserve: reserve,
-                          reserveTargetMonth: YearMonth(
-                            owner.birthMonth.year + reserve.targetAge,
-                            owner.birthMonth.month,
-                          ),
-                          plannedExpenses: plannedExpenses,
-                        ),
-                      ),
-                    ),
-                    child: const Text('詳しく見る'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.section),
-              _HomeSection(
-                title: '予定費',
-                children: [
-                  Text('次回', style: text.bodyMedium),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    formatMonth(nextExpense.plannedMonth),
-                    style: text.bodyLarge,
-                  ),
-                  Text(nextExpense.name, style: text.titleLarge),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    formatYen(nextExpense.amountYen),
-                    style: text.headlineLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text('${plannedExpenses.length}件の予定', style: text.bodyMedium),
-                  const SizedBox(height: AppSpacing.xl),
-                  FilledButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (context) => PlannedExpensesScreen(
-                          plannedExpenses: plannedExpenses,
-                        ),
-                      ),
-                    ),
-                    child: const Text('予定費を見る・追加する'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xxxl),
-              const Divider(),
-              Semantics(
-                button: true,
-                child: InkWell(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (context) => PlanSettingsScreen(),
-                    ),
-                  ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minHeight: AppSizes.buttonMinHeight,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.lg,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text('設定', style: text.titleMedium)),
-                          const Icon(Icons.chevron_right),
-                        ],
-                      ),
-                    ),
+              if (notice != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    notice,
+                    key: const ValueKey('home-update'),
+                    style: text.bodyMedium,
                   ),
                 ),
+              ],
+              const SizedBox(height: AppSpacing.section),
+              TextButton(
+                onPressed: () => _open(
+                  context,
+                  FutureTimelineScreen(
+                    years: session.timeline,
+                    updatePending: session.timelinePending,
+                    onViewed: onTimelineViewed,
+                  ),
+                ),
+                child: const Text('未来タイムラインを見る'),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text('大型修理への備え', style: text.titleLarge),
+              TextButton(
+                onPressed: () => _open(
+                  context,
+                  RepairReserveScreen(
+                    ownershipGoal: OwnershipGoal(
+                      targetAge: session.conditions.ownershipTargetAge,
+                    ),
+                    reserve: MajorRepairReserve(
+                      amountYen: session.conditions.largeRepairReserveYen,
+                      targetAge: session.conditions.reserveTargetAge,
+                    ),
+                    result: session.reserveResult,
+                    updatePending: session.reservePending,
+                    deltaYen: session.reserveDeltaYen,
+                    onViewed: onReserveViewed,
+                  ),
+                ),
+                child: const Text('詳しく見る'),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                onPressed: () => _open(
+                  context,
+                  PlannedExpensesScreen(
+                    plannedExpenses: session.plannedExpenses,
+                  ),
+                ),
+                child: const Text('予定費を見る・追加する'),
+              ),
+              const SizedBox(height: AppSpacing.section),
+              OutlinedButton(
+                onPressed: () => _open(
+                  context,
+                  PlanSettingsScreen(
+                    conditions: session.conditions,
+                    birthMonth: session.birthMonth,
+                    referenceMonth: session.referenceMonth,
+                    onApply: onApply,
+                  ),
+                ),
+                child: const Text('設定'),
               ),
             ],
           ),
@@ -235,60 +137,4 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
-
-  int _completedYears(YearMonth start) =>
-      referenceMonth.year -
-      start.year -
-      (referenceMonth.month < start.month ? 1 : 0);
-}
-
-class _SavingTargetCard extends StatelessWidget {
-  const _SavingTargetCard({required this.amountYen});
-
-  final int amountYen;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.importantCardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('今からの積立目安', style: theme.textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              '月${formatYen(amountYen)}',
-              style: theme.textTheme.displayMedium!.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Common spacing for the secondary, card-free sections.
-class _HomeSection extends StatelessWidget {
-  const _HomeSection({required this.title, required this.children});
-
-  final String title;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Semantics(
-        header: true,
-        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-      ),
-      const SizedBox(height: AppSpacing.lg),
-      ...children,
-    ],
-  );
 }
