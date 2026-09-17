@@ -11,6 +11,14 @@
 
 ## Development Rules
 
+- 役割分担・標準開発フローは docs/development_workflow.md に従う
+- 塁さんがProduct Owner・最終承認者・commit実施可否の承認者を担う
+- ChatGPT Project Chatが仕様策定・設計判断・レビュー指摘の採否判断を担い、CodexがRepositoryを書き換える実装担当を担う
+- Claude CoworkはCodexと同じRepositoryを参照する独立した読み取り専用レビュー担当とする
+- Claude Coworkによるファイル変更・自動修正・作成・削除・名称変更、およびgit add / commit / push / reset / clean / checkout等のRepository状態変更は禁止する
+- Claude Coworkは読み取り専用のgit status / diff / log等で確認し、問題を発見しても修正せずレビュー結果だけを返す
+- Claude Coworkのレビュー結果を自動的に正式仕様とせず、ChatGPT Project Chatと塁さんが採否・設計判断を行う
+- Claude Project Memoryは補助情報とし、正式仕様・実装状態・履歴はRepository内文書・ソースコード・テスト・Git履歴をSingle Source of Truthとする
 - docs/current_step.md の承認済み仕様に従う
 - 仕様にない機能を勝手に追加しない
 - 曖昧さや矛盾があれば推測せず質問する
@@ -32,8 +40,10 @@
 
 ## Git
 
+以下の変更操作の許可はCodexに適用する。Claude Coworkには上記の読み取り専用制約を常に適用する。
+
 - git status / diff / stage / staged diff確認は可
 - stageする場合は、現在の対象Stepに属する変更だけをstageする
 - 読み取り限定、またはgit add禁止の個別指示がある場合は、その指示を優先する
-- git commitは人間の明示承認後のみ
+- git commitは塁さんの明示承認後のみ
 - git pushは禁止。明示承認がある場合のみ実施する
