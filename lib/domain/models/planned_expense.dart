@@ -6,6 +6,7 @@ enum PlannedExpenseStatus { planned, completed }
 
 class PlannedExpense {
   const PlannedExpense({
+    required this.id,
     required this.name,
     required this.plannedMonth,
     required this.amountYen,
@@ -14,6 +15,7 @@ class PlannedExpense {
     required this.status,
   });
 
+  final int id;
   final String name;
   final YearMonth plannedMonth;
   final int amountYen;

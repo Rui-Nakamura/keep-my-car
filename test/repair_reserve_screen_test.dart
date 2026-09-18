@@ -47,7 +47,10 @@ Future<void> pumpReserve(
   );
 }
 
+int _nextExpenseId = 1;
+
 PlannedExpense expense(int amount) => PlannedExpense(
+  id: _nextExpenseId++,
   name: '予定費',
   plannedMonth: const YearMonth(2035, 4),
   amountYen: amount,

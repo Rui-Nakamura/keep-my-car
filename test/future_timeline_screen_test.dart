@@ -11,8 +11,11 @@ import 'plan_test_support.dart';
 
 import 'package:keep_my_car/features/timeline/presentation/future_timeline_screen.dart';
 
+int _nextExpenseId = 1;
+
 PlannedExpense expense(String name, int year, int month, int amount) =>
     PlannedExpense(
+      id: _nextExpenseId++,
       name: name,
       plannedMonth: YearMonth(year, month),
       amountYen: amount,

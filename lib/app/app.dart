@@ -60,6 +60,7 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
       onNavigate: () => _update(_session.consumeHomeUpdate),
       onTimelineViewed: () => _update(_session.acknowledgeTimeline),
       onReserveViewed: () => _update(_session.acknowledgeReserve),
+      onExpensesChanged: () => _update(() {}),
     ),
   );
 }

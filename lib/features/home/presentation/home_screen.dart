@@ -20,12 +20,14 @@ class HomeScreen extends StatelessWidget {
     required this.onNavigate,
     required this.onTimelineViewed,
     required this.onReserveViewed,
+    required this.onExpensesChanged,
   });
   final PlanSession session;
   final Map<PlanField, PlanInputError> Function(PlanConditions) onApply;
   final VoidCallback onNavigate;
   final VoidCallback onTimelineViewed;
   final VoidCallback onReserveViewed;
+  final VoidCallback onExpensesChanged;
 
   void _open(BuildContext context, Widget screen) {
     // The screen is constructed before the builder, fixing this visit's snapshot.
@@ -113,7 +115,8 @@ class HomeScreen extends StatelessWidget {
                 onPressed: () => _open(
                   context,
                   PlannedExpensesScreen(
-                    plannedExpenses: session.plannedExpenses,
+                    session: session,
+                    onChanged: onExpensesChanged,
                   ),
                 ),
                 child: const Text('予定費を見る・追加する'),

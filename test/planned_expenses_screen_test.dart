@@ -7,8 +7,13 @@ import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/features/planned_expenses/presentation/planned_expenses_screen.dart';
 import 'package:keep_my_car/sample_data/golden_sample.dart';
 
+import 'plan_test_support.dart';
+
+int _nextExpenseId = 1;
+
 PlannedExpense expense(String name, int year, int month, int amount) =>
     PlannedExpense(
+      id: _nextExpenseId++,
       name: name,
       plannedMonth: YearMonth(year, month),
       amountYen: amount,
@@ -34,7 +39,10 @@ Future<void> pumpExpenses(
             .copyWith(textScaler: TextScaler.linear(scale)),
         child: child!,
       ),
-      home: PlannedExpensesScreen(plannedExpenses: expenses),
+      home: PlannedExpensesScreen(
+        session: session(expenses: expenses),
+        onChanged: () {},
+      ),
     ),
   );
 }
@@ -168,15 +176,17 @@ void main() {
   testWidgets('empty list shows count and required fallback', (tester) async {
     await pumpExpenses(tester, []);
     expect(find.text('0件の予定'), findsOneWidget);
-    expect(find.text('予定はありません'), findsOneWidget);
+    expect(find.text('予定費はまだありません'), findsOneWidget);
     expectSafeLayout(tester);
   });
 
   testWidgets('identical expenses all remain visible and count toward total', (
     tester,
   ) async {
-    final duplicate = expense('同じ予定', 2027, 4, 100000);
-    await pumpExpenses(tester, [duplicate, duplicate]);
+    await pumpExpenses(tester, [
+      expense('同じ予定', 2027, 4, 100000),
+      expense('同じ予定', 2027, 4, 100000),
+    ]);
     expect(find.text('2件の予定'), findsOneWidget);
     expect(find.text('同じ予定'), findsNWidgets(2));
     expect(find.text('2027年4月'), findsNWidgets(2));

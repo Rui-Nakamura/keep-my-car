@@ -4,8 +4,7 @@
 
 Approved.
 
-塁さんからStep 11の製品仕様について明示的な承認を得ている。Flutter実装開始の承認はまだ得ていない。
-今回の作業は本書への承認済み仕様の反映のみとする。
+塁さんからStep 11の製品仕様について明示的な承認を得ている。
 
 ## 既存仕様との関係
 
@@ -121,7 +120,7 @@ Step 11で新規予定費を生成する場合は、以下の固定値を使用�
 
 一意IDは、同一内容のduplicateを個別に識別するために使用する。
 
-IDの具体的実装方式は、後続のFlutter実装時に既存Repository構造を確認したうえで決定する。
+IDの具体的実装方式は、既存Repository構造を確認したうえで決定する。
 
 SQLiteを前提とした過剰設計は行わない。
 
@@ -693,7 +692,7 @@ SQLiteを導入しない。
 
 ## 26. 実機確認
 
-後続のFlutter実装完了後、Pixel 6aで最低限以下を確認する。
+Flutter実装完了後、Pixel 6aで最低限以下を確認する。
 
 - 予定費追加
 - 編集
@@ -743,30 +742,11 @@ SQLiteを導入しない。
 
 ## 28. 実装開始境界
 
-今回の作業は仕様書更新だけ。
+Flutter実装は、塁さんから明示的な実装開始承認を受けた後に、本書の承認済みStep 11仕様の範囲で行う。
 
-**塁さんからFlutter実装開始の承認はまだ得ていません。**
-
-したがって今回してよいこと：
-
-- `docs/current_step.md` の更新
-- 必要なread-only調査
-- Markdownとしての整合確認
-- Git diff確認
-- `git diff --check`
-
-今回してはいけないこと：
-
-- `lib/`変更
-- `test/`変更
-- Flutter実装
-- package追加
-- SQLite導入
-- formatterによる無関係ファイル変更
-- stage
-- commit
-- push
-
----
-
-文書更新後は、Markdownの整合性、`git diff --check`、`git status --short`、`git diff -- docs/current_step.md` を確認する。本書以外に意図しない変更がないことを確認し、Claude Coworkがread-onlyレビューできる状態で停止する。Flutter実装は、塁さんから別途明示的な実装開始承認を受けた後に行う。
+- package追加は事前承認を必要とする
+- SQLiteは導入しない
+- formatterによる無関係ファイル変更は行わない
+- commitは塁さんの明示承認後のみ行う
+- pushは明示指示がない限り行わない
+- Claude Coworkによる独立レビューはread-onlyで行う

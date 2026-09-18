@@ -46,6 +46,7 @@ const goldenSample = GoldenSampleScenario(
   reserve: MajorRepairReserve(amountYen: 2000000, targetAge: 65),
   plannedExpenses: [
     PlannedExpense(
+      id: 1,
       name: '12Vバッテリー',
       plannedMonth: YearMonth(2027, 4),
       amountYen: 80000,
@@ -54,6 +55,7 @@ const goldenSample = GoldenSampleScenario(
       status: PlannedExpenseStatus.planned,
     ),
     PlannedExpense(
+      id: 2,
       name: 'タイヤ',
       plannedMonth: YearMonth(2028, 8),
       amountYen: 220000,
@@ -62,6 +64,7 @@ const goldenSample = GoldenSampleScenario(
       status: PlannedExpenseStatus.planned,
     ),
     PlannedExpense(
+      id: 3,
       name: 'ブレーキ一式',
       plannedMonth: YearMonth(2031, 6),
       amountYen: 800000,
@@ -70,6 +73,7 @@ const goldenSample = GoldenSampleScenario(
       status: PlannedExpenseStatus.planned,
     ),
     PlannedExpense(
+      id: 4,
       name: '48Vバッテリー',
       plannedMonth: YearMonth(2034, 9),
       amountYen: 500000,
@@ -78,6 +82,7 @@ const goldenSample = GoldenSampleScenario(
       status: PlannedExpenseStatus.planned,
     ),
     PlannedExpense(
+      id: 5,
       name: '足回り',
       plannedMonth: YearMonth(2037, 8),
       amountYen: 700000,
@@ -86,6 +91,7 @@ const goldenSample = GoldenSampleScenario(
       status: PlannedExpenseStatus.planned,
     ),
     PlannedExpense(
+      id: 6,
       name: 'タイヤ',
       plannedMonth: YearMonth(2039, 4),
       amountYen: 250000,

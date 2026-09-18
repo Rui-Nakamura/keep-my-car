@@ -4,8 +4,11 @@ import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/domain/repair_reserve_calculator.dart';
 import 'package:keep_my_car/sample_data/golden_sample.dart';
 
+int _nextExpenseId = 1;
+
 PlannedExpense expense(int month, int amount, {int year = 2026}) =>
     PlannedExpense(
+      id: _nextExpenseId++,
       name: '予定費',
       plannedMonth: YearMonth(year, month),
       amountYen: amount,

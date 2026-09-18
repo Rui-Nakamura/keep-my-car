@@ -3,8 +3,11 @@ import 'package:keep_my_car/domain/models/planned_expense.dart';
 import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/features/timeline/future_timeline_calculator.dart';
 
+int _nextExpenseId = 1;
+
 PlannedExpense expense(String name, int year, int month, int amount) =>
     PlannedExpense(
+      id: _nextExpenseId++,
       name: name,
       plannedMonth: YearMonth(year, month),
       amountYen: amount,
