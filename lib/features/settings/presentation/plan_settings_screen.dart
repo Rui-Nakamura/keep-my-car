@@ -4,7 +4,7 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/plan_conditions.dart';
 import '../../../domain/models/year_month.dart';
 import '../../../domain/plan_conditions_validation.dart';
-import '../../home/presentation/home_format.dart';
+import '../../../app/display_format.dart';
 
 class PlanSettingsScreen extends StatefulWidget {
   const PlanSettingsScreen({

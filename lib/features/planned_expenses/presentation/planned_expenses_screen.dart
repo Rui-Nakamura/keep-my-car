@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../app/plan_session.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/planned_expense.dart';
-import '../../home/presentation/home_format.dart';
+import '../../../app/display_format.dart';
 import 'planned_expense_editor.dart';
 
 class PlannedExpensesScreen extends StatefulWidget {

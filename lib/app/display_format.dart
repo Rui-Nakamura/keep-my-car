@@ -1,4 +1,4 @@
-import '../../../domain/models/year_month.dart';
+import '../domain/models/year_month.dart';
 
 String formatNumber(int value) => value.toString().replaceAllMapped(
   RegExp(r'(\d)(?=(\d{3})+(?!\d))'),

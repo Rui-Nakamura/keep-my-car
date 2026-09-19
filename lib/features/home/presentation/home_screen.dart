@@ -10,7 +10,7 @@ import '../../timeline/presentation/future_timeline_screen.dart';
 import '../../planned_expenses/presentation/planned_expenses_screen.dart';
 import '../../repair_reserve/presentation/repair_reserve_screen.dart';
 import '../../settings/presentation/plan_settings_screen.dart';
-import 'home_format.dart';
+import '../../../app/display_format.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({

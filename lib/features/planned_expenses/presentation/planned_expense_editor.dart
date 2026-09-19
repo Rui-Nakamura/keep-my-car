@@ -5,7 +5,7 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/planned_expense.dart';
 import '../../../domain/models/year_month.dart';
 import '../../../domain/planned_expense_validation.dart';
-import '../../home/presentation/home_format.dart';
+import '../../../app/display_format.dart';
 
 class PlannedExpenseEditor extends StatefulWidget {
   const PlannedExpenseEditor({super.key, required this.session, this.expense});

@@ -4,7 +4,7 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/update_feedback.dart';
 import '../future_timeline_calculator.dart';
 import '../../../domain/models/planned_expense.dart';
-import '../../home/presentation/home_format.dart';
+import '../../../app/display_format.dart';
 
 class FutureTimelineScreen extends StatelessWidget {
   const FutureTimelineScreen({

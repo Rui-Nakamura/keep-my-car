@@ -5,7 +5,7 @@ import '../../../app/update_feedback.dart';
 import '../../../domain/models/major_repair_reserve.dart';
 import '../../../domain/models/ownership_goal.dart';
 import '../../../domain/repair_reserve_calculator.dart';
-import '../../home/presentation/home_format.dart';
+import '../../../app/display_format.dart';
 
 class RepairReserveScreen extends StatelessWidget {
   const RepairReserveScreen({
