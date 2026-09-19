@@ -229,7 +229,7 @@ void main() {
         find.byKey(const ValueKey('timeline-update-text')),
         findsOneWidget,
       );
-      await tester.pageBack();
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('home-update')), findsNothing);
       await openSettings(tester);
@@ -259,7 +259,7 @@ void main() {
       expect(find.byKey(const ValueKey('reserve-delta')), findsOneWidget);
       await tester.pump(const Duration(seconds: 2));
       expect(reserveAlpha(tester), 0);
-      await tester.pageBack();
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       for (final link in ['未来タイムラインを見る', '詳しく見る']) {
         await tester.ensureVisible(find.text(link));
@@ -271,7 +271,7 @@ void main() {
         );
         expect(find.byKey(const ValueKey('reserve-update-text')), findsNothing);
         expect(find.byKey(const ValueKey('reserve-delta')), findsNothing);
-        await tester.pageBack();
+        await tester.tap(find.byType(BackButton));
         await tester.pumpAndSettle();
       }
       expect((calls.timeline, calls.reserve), (0, 0));

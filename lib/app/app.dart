@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../domain/models/plan_conditions.dart';
 import '../domain/plan_conditions_validation.dart';
@@ -52,6 +53,9 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Keep My Car',
+    locale: const Locale('ja', 'JP'),
+    supportedLocales: const [Locale('ja', 'JP')],
+    localizationsDelegates: GlobalMaterialLocalizations.delegates,
     theme: AppTheme.light,
     themeMode: ThemeMode.light,
     home: HomeScreen(

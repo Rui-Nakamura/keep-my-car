@@ -42,7 +42,7 @@ Future<void> add(WidgetTester tester) =>
 Future<void> edit(WidgetTester tester, int id) =>
     tapVisible(tester, find.byKey(ValueKey('edit-expense-$id')));
 Future<void> back(WidgetTester tester) async {
-  await tester.pageBack();
+  await tester.tap(find.byType(BackButton));
   await tester.pumpAndSettle();
 }
 

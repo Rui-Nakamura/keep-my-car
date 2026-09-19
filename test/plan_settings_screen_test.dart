@@ -33,7 +33,7 @@ void main() {
       await openSettings(tester);
       await enter(tester, 'annualMileage', '6000');
       expect(plan.conditions.annualMileageKm, 4000);
-      await tester.pageBack();
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       expect(plan.conditions.annualMileageKm, 4000);
       await openSettings(tester);
