@@ -750,3 +750,59 @@ Flutter実装は、塁さんから明示的な実装開始承認を受けた後�
 - commitは塁さんの明示承認後のみ行う
 - pushは明示指示がない限り行わない
 - Claude Coworkによる独立レビューはread-onlyで行う
+
+---
+
+## 29. 愛車表示名 Baseline
+
+本節はStep 11までの仕様を継承し、single-car MVPの愛車表示名と専用編集導線を追加する。Step 10で対象外だった車両名編集を本節で正式に承認する。
+
+### データと検証
+
+- 既存の `Car.name` をユーザー向けの愛車表示名として正式利用する。
+- 必須のnon-nullable `String`。自由入力とし、`displayName` は追加しない。
+- 保存時に `trim()` で前後空白を除去し、内部空白は保持する。
+- CR（`\r`）・LF（`\n`）・Tab（`\t`）を含む入力は保存不可とする。禁止文字の判定はtrim前の入力に対してdomain validationで行う。
+- UIでは通常入力・貼り付けの双方でCR・LF・Tabを除去する。通常の半角・全角スペースは内部空白として保持する。
+- 正規化後に空なら保存不可。文字数は `runes.length` で数え、40文字可、41文字不可とする。
+- 正規化・検証はpure Dartで一元化し、UIと正式反映処理で共用する。文字数packageは追加しない。
+- Golden Sampleの名前は `メルセデスAMG E53` とする。名前以外の入力値・計算結果は変更しない。
+
+### Homeと編集
+
+- Home上部は `Keep My Car`、愛車表示名、明示的な「愛車名を編集」、保有目標要約、大型修理への備え要約、既存更新案内、既存4導線の情報階層とする。
+- HomeはNavigation hub＋現在計画の短い要約を維持する。追加情報は愛車名と編集導線のみとする。
+- 車名表示自体は編集操作にしない。文字付きの「愛車名を編集」に十分なタップ領域を設ける。
+- `lib/features/car/presentation/car_name_screen.dart` に1項目の専用画面を置く。タイトルは「愛車名を編集」、入力初期値は現在のCar.name、主操作は「保存」。削除操作は設けない。
+- 入力中は正式Carを変更しない。AppBar戻る・Android戻る等は入力を破棄し、破棄確認ダイアログは設けない。
+- 保存時にtrim、検証、正式値比較を行う。不正値では正式状態を変更しない。
+- 正規化後に同じ名前ならCar変更・不要な状態更新・計算・pending変更・更新通知を行わずHomeへ戻る。
+- 実際に変更された場合のみHomeで「愛車名を更新しました」と短く通知する。試算結果用pendingや画面輪郭強調として扱わない。
+
+### 状態管理と既存仕様
+
+- 現在CarはKeepMyCarApp側で保持し、immutableを維持する。name・currentMileageKm・annualMileageKm更新に小さなcopyWithを用いる。
+- PlanSessionにはCar全体を持たせない。正式試算条件・予定費・Step 8/9結果・pending等の既存責務を維持する。
+- HomeにはAppから現在Carを渡す。車名変更はStep 8/9の再計算を行わず、既存pending・差額情報を保持する。
+- PlanConditionsは既存6条件のままとし、愛車名を追加しない。
+- 計算の走行距離SSOTはPlanConditions。計画設定の正常な正式反映時に、AppがCarのcurrentMileageKm・annualMileageKmも同じ値へ同期する。不正入力では同期しない。
+- mileageCheckedMonth・firstRegistrationMonthは維持する。走行距離確認月の新しい更新ルールや独立した年式フィールドは追加しない。
+- Step 8/9計算、Step 10の6条件の意味、Step 11 CRUD、既存Navigation構造、Japanese Locale、display formatting、Theme・fontは変更しない。
+- HomeDisplayDataは復活・削除しない。旧固定金額・残り期間・目標時点車齢・目標時点走行距離等の旧Home表示は戻さない。
+- 永続化・SQLite・クラウド・複数車・車両マスタ・メーカー等の分割・車両API・新状態管理ライブラリは追加しない。
+
+### UI制約と受入条件
+
+- 360 logical px、text scale 3.0で横スクロール不要、重要情報欠落なしとする。
+- 愛車名は40文字でも折り返し可能とし、固定高さ・1行限定・ellipsisを使用しない。既存の縦スクロールを利用する。
+- データとしての改行は禁止するが、表示幅に応じた自動折り返しは許可する。長い愛車名は縦方向へ拡張して全文を表示する。
+- 編集画面は大きい文字・キーボード表示中でも入力欄、検証エラー、保存操作へ到達可能とする。
+- Model検証：名前更新時の元Car不変・他フィールド維持、走行距離更新時の名前・年月保持。
+- Validation検証：正常、1・40・41文字、空欄、半角／全角空白、trim、内部空白、Unicodeのrunes基準。
+- Validation検証：CR、LF、Tabを含む入力はそれぞれ保存不可とし、前後に含まれる場合もtrimで見逃さない。通常の半角・全角の内部スペースは保存可能とする。
+- Home／Editor検証：初期名・更新名、明示的編集、現在値、正常／trim保存、不正入力、変更なし、両戻る操作による破棄、通知、長い名前・大文字・キーボード、旧Home非復活。
+- Editor／UI検証：通常入力・貼り付けの双方でCR・LF・Tabを正式値へ残さず、長い愛車名の自動折り返しを維持する。
+- 状態検証：名前変更時のStep 8/9計算0回、pending・差額保持、計画設定からの走行距離2項目同期、mileageCheckedMonth維持。
+- Golden Sample回帰：名前以外の入力値、Step 8の10年間と既存結果、Step 9の11,341円/月・29,808円/月・18,467円/月を維持する。
+- 実装後は対象箇所のdart format、flutter analyze、既存＋追加の全flutter test、git diff --checkを実施する。
+- Pixel 6aでは初期表示、編集、保存、変更なし、戻る破棄、40文字、検証エラー、大きい文字、キーボード、横overflowなしを確認する。

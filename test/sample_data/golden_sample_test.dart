@@ -8,7 +8,7 @@ import 'package:keep_my_car/sample_data/golden_sample_expected_results.dart';
 void main() {
   test('Approved car, owner, goal and funding inputs are preserved', () {
     expect(goldenSample.referenceMonth, const YearMonth(2026, 9));
-    expect(goldenSample.car.name, 'Mercedes-AMG E53');
+    expect(goldenSample.car.name, 'メルセデスAMG E53');
     expect(goldenSample.car.firstRegistrationMonth, const YearMonth(2018, 8));
     expect(goldenSample.car.currentMileageKm, 45000);
     expect(goldenSample.car.mileageCheckedMonth, const YearMonth(2026, 9));

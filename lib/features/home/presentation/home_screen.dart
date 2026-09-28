@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../domain/models/car.dart';
+import '../../../domain/car_validation.dart';
+import '../../car/presentation/car_name_screen.dart';
+
 import '../../../app/plan_session.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/plan_conditions.dart';
@@ -15,6 +19,8 @@ import '../../../app/display_format.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
+    required this.car,
+    required this.onSaveCarName,
     required this.session,
     required this.onApply,
     required this.onNavigate,
@@ -23,11 +29,25 @@ class HomeScreen extends StatelessWidget {
     required this.onExpensesChanged,
   });
   final PlanSession session;
+  final Car car;
+  final CarNameError? Function(String) onSaveCarName;
   final Map<PlanField, PlanInputError> Function(PlanConditions) onApply;
   final VoidCallback onNavigate;
   final VoidCallback onTimelineViewed;
   final VoidCallback onReserveViewed;
   final VoidCallback onExpensesChanged;
+
+  Future<void> _editCarName(BuildContext context) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => CarNameScreen(name: car.name, onSave: onSaveCarName),
+      ),
+    );
+    if (changed == true && context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('愛車名を更新しました')));
+    }
+  }
 
   void _open(BuildContext context, Widget screen) {
     // The screen is constructed before the builder, fixing this visit's snapshot.
@@ -56,6 +76,12 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('Keep My Car', style: text.headlineLarge),
+              const SizedBox(height: AppSpacing.lg),
+              Text(car.name, style: text.titleLarge),
+              TextButton(
+                onPressed: () => _editCarName(context),
+                child: const Text('愛車名を編集'),
+              ),
               const SizedBox(height: AppSpacing.xxl),
               Text(
                 '${conditions.ownershipTargetAge}歳まで保有',

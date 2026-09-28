@@ -34,7 +34,7 @@ class GoldenSampleScenario {
 const goldenSample = GoldenSampleScenario(
   referenceMonth: YearMonth(2026, 9),
   car: Car(
-    name: 'Mercedes-AMG E53',
+    name: 'メルセデスAMG E53',
     firstRegistrationMonth: YearMonth(2018, 8),
     currentMileageKm: 45000,
     mileageCheckedMonth: YearMonth(2026, 9),

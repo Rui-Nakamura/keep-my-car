@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../domain/models/plan_conditions.dart';
+import '../domain/models/car.dart';
+import '../domain/car_validation.dart';
 import '../domain/plan_conditions_validation.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../sample_data/golden_sample.dart';
@@ -18,6 +20,7 @@ class KeepMyCarApp extends StatefulWidget {
 
 class _KeepMyCarAppState extends State<KeepMyCarApp> {
   late final PlanSession _session;
+  late Car _car;
 
   @override
   void initState() {
@@ -38,12 +41,35 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
           firstRegistrationMonth: goldenSample.car.firstRegistrationMonth,
           plannedExpenses: goldenSample.plannedExpenses,
         );
+    _car = goldenSample.car.copyWith(
+      currentMileageKm: _session.conditions.currentMileageKm,
+      annualMileageKm: _session.conditions.annualMileageKm,
+    );
   }
 
   Map<PlanField, PlanInputError> _apply(PlanConditions next) {
     final errors = _session.apply(next);
-    if (errors.isEmpty) setState(() {});
+    if (errors.isEmpty) {
+      setState(() {
+        if (_car.currentMileageKm != _session.conditions.currentMileageKm ||
+            _car.annualMileageKm != _session.conditions.annualMileageKm) {
+          _car = _car.copyWith(
+            currentMileageKm: _session.conditions.currentMileageKm,
+            annualMileageKm: _session.conditions.annualMileageKm,
+          );
+        }
+      });
+    }
     return errors;
+  }
+
+  CarNameError? _saveCarName(String input) {
+    final result = validateCarName(input);
+    if (result.error != null) return result.error;
+    if (result.name != _car.name) {
+      setState(() => _car = _car.copyWith(name: result.name));
+    }
+    return null;
   }
 
   void _update(VoidCallback action) {
@@ -59,6 +85,8 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
     theme: AppTheme.light,
     themeMode: ThemeMode.light,
     home: HomeScreen(
+      car: _car,
+      onSaveCarName: _saveCarName,
       session: _session,
       onApply: _apply,
       onNavigate: () => _update(_session.consumeHomeUpdate),
