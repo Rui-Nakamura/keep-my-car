@@ -953,7 +953,7 @@ Flutter実装は、塁さんから明示的な実装開始承認を受けた後�
 - SQLiteは導入しない
 - formatterによる無関係ファイル変更は行わない
 - commitは塁さんの明示承認後のみ行う
-- pushは明示指示がない限り行わない
+- Step 11当時は、pushは明示指示がない限り行わない運用だった。現在のGit／GitHub運用は、正本である `docs/development_workflow.md` および `AGENTS.md` の現行ルールに従う
 - Claude Coworkによる独立レビューはread-onlyで行う
 
 ---
