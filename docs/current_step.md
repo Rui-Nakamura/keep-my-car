@@ -1,14 +1,82 @@
-# Phase 05 Step 11 — 愛車予定費 CRUD Baseline
+# Phase 05 Step 12 — Local Persistence Baseline
 
 ## Status
 
-Approved.
+Completed.
 
-塁さんからStep 11の製品仕様について明示的な承認を得ている。
+Phase 05 Step 12 Local Persistence Baseline / App Integrationは正式完了。承認済みのStep 12-A〜Eに基づくE1〜E3cの実装・検証、およびProject Chat・Claude Coworkの最終レビューを完了し、Claude Cowork最終判定はPASS（Critical・Major・Minorなし）とする。以下のStep 11および愛車表示名の承認済み仕様は継承する。
+
+## Step 12の承認・実装状態
+
+| 対象 | 現在の状態 |
+|---|---|
+| Step 12-A：保存要件 | 承認済み |
+| Step 12-B：Version付きJSON方式 | 承認済み |
+| Step 12-C：JSON形式・安全保存・1世代backup方針 | 承認済み |
+| Step 12-D：Persistence責務分離・保存成功後反映方針 | 承認済み |
+| Step 12-E：実装範囲・受入条件 | 承認済み |
+| Step 12-E1：JSON保存形式・変換基盤 | 実装済み・正式完了判定済み |
+| Step 12-E2：安全なローカルファイル保存・1世代backup・復旧 | 基盤実装・レビュー完了 |
+| Step 12-E3a：所有者生年月Persistence追加＋E2テスト補強 | 実装・レビュー完了 |
+| Step 12-E3b：初回設定・起動時読込・画面保存接続 | 実装・レビュー完了（PASS WITH COMMENTS） |
+| Step 12-E3c：保存候補直接採用・統合テスト補強・Android release実機確認 | 実装・検証・独立レビュー完了 |
+
+E1ではCar・PlanConditions・PlannedExpenseの保存専用DTO、Domainとの相互変換、JSON encode/decode、formatVersion = 1、構造・型・年月・versionの検証と単体テストを実装する。Domain ModelにJSON責務を追加せず、Domain validationを再利用する。
+
+E2では実ファイル保存・読込、current / temp / backup、backupからの復旧判定を実装する。UI接続、起動時load、PlanSession保存接続はE3bで実装。Import / Exportは未実装とする。
+
+### E2の保存・復旧基盤
+
+- Application側の境界は`KeepMyCarRepository.load()`と`save(snapshot)`とし、File APIと保存場所取得はStorageへ隔離する。Mapperから結果に影響しない生年月・基準年月引数を除去し、予定費の固定validationもDomain側で共用する。
+- `path_provider`のApplication Support領域を使用する。同一directory内の`keep_my_car.json`（current）、`keep_my_car.tmp`（temp）、`keep_my_car.backup.json`（backup）の3ファイルとする。
+- 保存は固定validation・JSON生成 → UTF-8 temp書込み（flush）→ 実読込・Codec／Mapper再検証・候補との一致確認 → 正常currentをbackupへ退避 → tempをcurrentへ昇格 → current再検証・一致確認の順とする。初回保存ではbackupを作らない。
+- backupは直前正常currentの1世代だけ保持する。不正tempではcurrent／backupを変更しない。不正currentをbackupへ退避せず、既存backupを保持する。
+- renameの完全な原子性は前提にしない。退避・昇格・最終検証の失敗時は、退避前の内容からtemp経由でcurrent、次いでbackupの復元を試みる。currentの復元にも失敗した場合はbackupを追加変更せず、元エラーと復元失敗原因を返す。OS停止・電源断を含む完全なtransaction保証は行わない。
+- loadはcurrent正常なら`Loaded`、current欠損／破損等かつbackup正常なら`Recovered`、両方欠損なら`NoData`、利用可能な正常データがなければ`LoadFailure`を返す。読込エラーは欠損と区別する。
+- loadはファイルを書き換えない。tempのみなら`NoData`とし、自動昇格しない。正常currentとtempがあればcurrentを採用する。Golden Sampleや空データへ自動フォールバックしない。
+- 同一保存directoryには単一Repositoryを所有させ、実行中ガードにより同時saveとsave中のloadを拒否する。エラーは発生段階・元例外・stack traceを保持する。ユーザー向け通知はE3とする。
+
+### E3aの保存Snapshot拡張・受入条件
+
+- 最上位の必須fieldとして`ownerBirthMonth`を保存する。DTO／JSONは既存年月形式と同じ`YYYY-MM`文字列、Domainとの値集合は既存の`YearMonth`とする。欠損・null・型違い・不正年月は拒否する。未来の生年月や年齢上限等の新しい業務制約は追加しない。
+- 保存SnapshotはownerBirthMonth・Car・PlanConditions・PlannedExpensesで構成する。E3aの形式拡張後も`formatVersion = 1`を維持する。所有者生年月のない旧形式へ既定値を補完しない。
+- `referenceMonth`は保存しない。E3bでアプリ起動時の現在年月から生成する値とする。Golden Sampleの所有者生年月1970-04とStep 8／9のRegressionを往復テストで維持する。
+- E2補強テストでは、正常current＋破損backupからの保存、破損current＋backupなしからの保存、current復元成功＋backup復元失敗で最新の正常な旧currentを保持することを確認する。`rollbackIssues`は維持し、E3bで保存状態不明を識別するために使う。
+- 同じ保存directoryに複数Repositoryを同時利用した場合の安全性は保証しない。E3bではKeepMyCarAppがアプリ全体でRepositoryを1つだけ所有する。E3aではApp接続やglobal lockは実装しない。
+
+### E3bのApp・UI接続
+
+- KeepMyCarAppがRepositoryを1インスタンスだけ所有し、Application State経由のcallbackで画面の保存要求を受ける。各画面ではRepositoryを生成しない。
+- 起動時はLoadingを表示し、load完了までHomeやGolden Sampleを表示しない。referenceMonthは起動時の端末ローカル年月から生成し、保存しない。
+- NoDataでは1画面・3区画・10項目の初期設定へ進む。走行距離確認年月は現在月、愛車専用資金・大型修理予備費は0円、目標年齢は未入力とする。既存Domain validationを共用し、ownerBirthMonth・Car・PlanConditions・空の予定費一覧の保存成功後だけHomeへ進む。通常失敗では入力を維持する。
+- Loadedでは保存Snapshotを正式Stateとして採用し、Step 8／9を再計算する。Recoveredではbackup内容でHomeへ進み復旧通知を表示するだけで、ファイルを修復・削除しない。Failureでは専用画面から同じRepositoryで再読込でき、自動初期化・削除はしない。
+- 愛車名・Plan Settings・予定費追加／編集／削除は候補Snapshotを保存してから正式反映する。通常SaveFailureでは旧正式State・計算結果・draftを維持する。愛車名だけでは再計算せず、設定・予定費の変更では既存ルールで再計算する。Carの走行距離2項目も設定の保存成功後だけ同期する。
+- 保存中は編集・再送信・戻る操作を抑止する。成功通知と既存の更新フィードバックはPersistence成功後だけ発生する。nextIdは保存せず、復元した予定費IDから再構成する。
+- rollbackIssuesがあるSaveFailureは保存状態不明の専用画面へ進み、成功演出を出さない。「保存状態を確認する」で同じRepositoryを再loadし、Loaded／Recoveredならディスク内容を新たな正本として採用、Failureなら読込失敗画面、NoDataなら初期設定へ進む。
+- 通常起動でGolden Sampleは生成しない。Golden Sampleは既存のtest／regression用として維持する。Export／Importは未実装とする。
+- Pixel 6aのdebug実機でアプリデータ消去 → 初期設定 → 保存 → 完全終了 → 再起動後のLoadedを確認済み。スクリーンショットはRepository外のTempへ保存する。
+
+### E3cの候補採用・統合検証
+
+- Plan Settingsと予定費追加／編集／削除では、保存前の検証・候補作成と保存成功後の正式採用を分離する。Repositoryへ渡したPlanConditions・Car・immutableな予定費一覧をそのまま正式採用し、同じ入力から作り直さない。採用後は既存のStep 8／9再計算・pending・差額判定を維持する。失敗した追加ではIDを消費しない。
+- 実Persistence統合テストは専用temporary directoryを使用し、NoData → 初期設定10項目 → 実保存 → App破棄・再生成 → 実読込 → Homeと全保存値の復元を確認する。Application Supportの実データは使用しない。
+- 初期設定の幅360px・文字倍率3.0テストではviewInsets.bottom = 300を設定し、キーボード相当領域がある状態で入力欄と保存ボタンへの縦スクロール・overflowなしを確認する。
+- Pixel 6aでrelease APKのビルド・インストール、データ消去後の初期設定 → 保存 → 完全終了 → 再起動後Loadedを確認済み。DEBUGリボンなし、Application Support取得を含むpath_provider経由の保存・読込が動作した。release内部JSONの直接読取は非debuggableの権限制限で未確認とし、JSON全項目は実ファイル統合テストで確認する。
+- m-1修正後のdebug版でもPlan Settingsの走行距離変更 → 保存 → 完全終了 → 再起動を確認し、保存JSONのCar／PlanConditions両方が60,000kmへ同期していることを確認済み。debug／release双方で保存再起動確認済みとする。Android設定・署名設定は変更しない。
+
+### Persistenceによる保存・復元のvalidation
+
+- 保存時に正常だったユーザーデータを、時間が経過しただけで破損データ扱いしない。後の年月に復元した状態を、そのまま再保存・再復元できること。
+- Persistenceによる保存・復元では、時間に依存しない同じ固定validationのみを使用する。保有目標年齢と現在年齢の比較、大型修理目標年月と現在月の比較、予定費の編集時年月範囲は保存・復元の可否判定から除外する。
+- 数値の絶対範囲、`0 <= ownershipTargetAge <= 100`、`0 <= reserveTargetAge <= 100`、`reserveTargetAge <= ownershipTargetAge`、型・必須値等の時間に依存しない不変条件は適用する。両目標年齢の固定範囲は0〜100歳とし、固定ルールはDomain側で共通化して保存層へ二重実装しない。
+- 既存の新規入力・編集時validationは従来どおり維持する。
+- 保存Snapshotでは`Car.currentMileageKm == PlanConditions.currentMileageKm`および`Car.annualMileageKm == PlanConditions.annualMileageKm`を要求する。不一致なら全体の復元失敗とし、どちらへの自動同期も行わない。
+
+## Step 11 — 愛車予定費 CRUD Baseline（継承）
 
 ## 実装状態の整理
 
-Step 7〜11は完了済みであり、第29節の愛車表示名編集も実装済みとする。仕様として存在していた内容と実装済み範囲の記述にあるRepository実物との差異を解消するため、実装状態を以下のとおり整理する。この実装状態の整理は、過去Stepのやり直しや既存実装の変更、Step 12の実装開始を意味しない。
+Step 7〜11は完了済みであり、第29節の愛車表示名編集も実装済みとする。既存機能の実装状態を以下のとおり整理する。Step 12の現在工程は上記の承認・実装状態に従う。
 
 | 対象 | 現在の実装状態 |
 |---|---|
@@ -16,14 +84,14 @@ Step 7〜11は完了済みであり、第29節の愛車表示名編集も実装�
 | プリセット選択UI | 未実装 |
 | 車検周期選択UI | 未実装 |
 | 繰り返し／周期登録・自動繰り返し生成・周期展開calculator | 未実装 |
-| ローカル永続化 | 未実装 |
+| ローカル永続化 | E1／E2基盤とE3bのUI・起動時読込・保存接続を実装済み |
 | 手動Export／手動Import | いずれも未実装 |
-| Backup / Restore基盤 | 未実装 |
+| Backup / Restore基盤 | E2の1世代backup・復旧判定、E3bの復旧通知UIを実装済み |
 | Android ⇔ iPhoneのデータ移行 | 未実装 |
 
 プリセット候補＋自由入力、車検周期選択、必要に応じた繰り返し／周期登録は将来仕様として維持するが、Step 7〜11の実装済み範囲には含めない。候補一覧と車検周期の方針は [Product Baseline「費目入力」](product_baseline.md#費目入力) を正本とする。既存の `MaintenanceCost` 等のモデルは、周期選択・生成・計算機能が実装済みであることを意味しない。
 
-手動Export / Importによるバックアップ・復元とデータ移行は、[Product Baseline「Backup / Data Portability」](product_baseline.md#backup--data-portability) に定めるMVP全体のMUSTである。第1節のStep 11対象外という範囲は維持し、MVP全体で不要という意味にはしない。現在は上表のとおり未実装であり、保存方式や利用package等の決定は本Stepの対象外とする。
+手動Export / Importによるバックアップ・復元とデータ移行は、[Product Baseline「Backup / Data Portability」](product_baseline.md#backup--data-portability) に定めるMVP全体のMUSTである。第1節のStep 11対象外という範囲は維持し、MVP全体で不要という意味にはしない。現在は上表のとおり未実装であり、Step 12-E1／E2にも含めない。保存方式は上記Step 12の承認方針に従う。
 
 ## 既存仕様との関係
 

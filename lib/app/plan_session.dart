@@ -18,6 +18,11 @@ enum HomeUpdate { timeline, reserve, both }
 
 enum ExpenseChange { added, updated, deleted, unchanged }
 
+typedef ExpenseCandidate = ({
+  ExpenseChange change,
+  List<PlannedExpense> expenses,
+});
+
 /// One in-memory session owned by the app. No widgets, navigation or storage.
 class PlanSession {
   PlanSession({
@@ -77,6 +82,32 @@ class PlanSession {
     required YearMonth month,
     required int amountYen,
   }) {
+    final candidate = prepareExpense(
+      id: id,
+      name: name,
+      month: month,
+      amountYen: amountYen,
+    );
+    return adoptValidatedExpenses(candidate);
+  }
+
+  /// Application-internal commit of the immutable, validated saved candidate.
+  /// Call only after save succeeds; does not recreate inputs or consume failed IDs.
+  ExpenseChange adoptValidatedExpenses(ExpenseCandidate candidate) {
+    if (candidate.change == ExpenseChange.unchanged) return candidate.change;
+    if (candidate.change == ExpenseChange.added) _nextExpenseId++;
+    _plannedExpenses = candidate.expenses;
+    _recalculate(timelineAffected: true, reserveAffected: true);
+    return candidate.change;
+  }
+
+  /// Validate and preview without allocating an ID, changing state or calculating.
+  ExpenseCandidate prepareExpense({
+    int? id,
+    required String name,
+    required YearMonth month,
+    required int amountYen,
+  }) {
     final errors = validatePlannedExpense(
       name: name,
       month: month,
@@ -95,10 +126,10 @@ class PlanSession {
         old.name == normalized &&
         old.plannedMonth == month &&
         old.amountYen == amountYen) {
-      return ExpenseChange.unchanged;
+      return (change: ExpenseChange.unchanged, expenses: plannedExpenses);
     }
     final expense = PlannedExpense(
-      id: old?.id ?? _nextExpenseId++,
+      id: old?.id ?? _nextExpenseId,
       name: normalized,
       plannedMonth: month,
       amountYen: amountYen,
@@ -112,19 +143,26 @@ class PlanSession {
     } else {
       next[index] = expense;
     }
-    _plannedExpenses = List.unmodifiable(next);
-    _recalculate(timelineAffected: true, reserveAffected: true);
-    return old == null ? ExpenseChange.added : ExpenseChange.updated;
+    return (
+      change: old == null ? ExpenseChange.added : ExpenseChange.updated,
+      expenses: List<PlannedExpense>.unmodifiable(next),
+    );
   }
 
   ExpenseChange deleteExpense(int id) {
-    final index = plannedExpenses.indexWhere((e) => e.id == id);
-    if (index < 0) return ExpenseChange.unchanged;
-    _plannedExpenses = List.unmodifiable(
-      plannedExpenses.toList()..removeAt(index),
+    return adoptValidatedExpenses(prepareExpenseDeletion(id));
+  }
+
+  ExpenseCandidate prepareExpenseDeletion(int id) {
+    final next = List<PlannedExpense>.unmodifiable(
+      plannedExpenses.where((e) => e.id != id),
     );
-    _recalculate(timelineAffected: true, reserveAffected: true);
-    return ExpenseChange.deleted;
+    return (
+      change: next.length == plannedExpenses.length
+          ? ExpenseChange.unchanged
+          : ExpenseChange.deleted,
+      expenses: next,
+    );
   }
 
   Map<PlanField, PlanInputError> apply(PlanConditions next) {
@@ -134,6 +172,14 @@ class PlanSession {
       referenceMonth: referenceMonth,
     );
     if (errors.isNotEmpty || next == _conditions) return errors;
+    adoptValidatedConditions(next);
+    return errors;
+  }
+
+  /// Application-internal commit of conditions validated before saving.
+  /// Keeps existing calculation and pending/difference rules.
+  void adoptValidatedConditions(PlanConditions next) {
+    if (next == _conditions) return;
     final old = _conditions;
     final oldIncluded = includedExpenses;
     _conditions = next;
@@ -151,7 +197,6 @@ class PlanSession {
       timelineAffected: timelineAffected,
       reserveAffected: reserveAffected,
     );
-    return errors;
   }
 
   void _recalculate({

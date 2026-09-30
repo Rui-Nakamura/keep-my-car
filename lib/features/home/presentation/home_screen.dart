@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../../../app/save_request.dart';
 
 import '../../../domain/models/car.dart';
 import '../../../domain/car_validation.dart';
@@ -27,11 +31,16 @@ class HomeScreen extends StatelessWidget {
     required this.onTimelineViewed,
     required this.onReserveViewed,
     required this.onExpensesChanged,
+    required this.onSaveExpense,
+    required this.onDeleteExpense,
   });
   final PlanSession session;
   final Car car;
-  final CarNameError? Function(String) onSaveCarName;
-  final Map<PlanField, PlanInputError> Function(PlanConditions) onApply;
+  final FutureOr<CarNameError?> Function(String) onSaveCarName;
+  final FutureOr<Map<PlanField, PlanInputError>> Function(PlanConditions)
+  onApply;
+  final SaveExpenseRequest onSaveExpense;
+  final DeleteExpenseRequest onDeleteExpense;
   final VoidCallback onNavigate;
   final VoidCallback onTimelineViewed;
   final VoidCallback onReserveViewed;
@@ -143,6 +152,8 @@ class HomeScreen extends StatelessWidget {
                   PlannedExpensesScreen(
                     session: session,
                     onChanged: onExpensesChanged,
+                    onSaveExpense: onSaveExpense,
+                    onDeleteExpense: onDeleteExpense,
                   ),
                 ),
                 child: const Text('予定費を見る・追加する'),

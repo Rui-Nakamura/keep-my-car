@@ -18,11 +18,10 @@ int completedYears(YearMonth start, YearMonth reference) =>
 YearMonth reserveMonth(YearMonth birthMonth, int age) =>
     YearMonth(birthMonth.year + age, birthMonth.month);
 
-Map<PlanField, PlanInputError> validatePlanConditions(
-  PlanConditions conditions, {
-  required YearMonth birthMonth,
-  required YearMonth referenceMonth,
-}) {
+/// Fixed rules shared by editing and persistence, independent of today's month.
+Map<PlanField, PlanInputError> validatePlanConditionsInvariants(
+  PlanConditions conditions,
+) {
   final errors = <PlanField, PlanInputError>{};
   void range(PlanField field, int value, int minimum, int maximum) {
     if (value < minimum || value > maximum) {
@@ -34,20 +33,31 @@ Map<PlanField, PlanInputError> validatePlanConditions(
   range(PlanField.annualMileage, conditions.annualMileageKm, 0, 200000);
   range(PlanField.fund, conditions.currentCarFundYen, 0, 1000000000);
   range(PlanField.reserve, conditions.largeRepairReserveYen, 0, 1000000000);
-  range(
-    PlanField.ownershipAge,
-    conditions.ownershipTargetAge,
-    completedYears(birthMonth, referenceMonth),
-    100,
-  );
+  range(PlanField.ownershipAge, conditions.ownershipTargetAge, 0, 100);
+  range(PlanField.reserveAge, conditions.reserveTargetAge, 0, 100);
+  if (conditions.reserveTargetAge > conditions.ownershipTargetAge) {
+    errors[PlanField.reserveAge] = PlanInputError.exceedsOwnershipAge;
+  }
+  return errors;
+}
+
+/// Editing additionally requires targets that are still current.
+Map<PlanField, PlanInputError> validatePlanConditions(
+  PlanConditions conditions, {
+  required YearMonth birthMonth,
+  required YearMonth referenceMonth,
+}) {
+  final errors = validatePlanConditionsInvariants(conditions);
+  if (conditions.ownershipTargetAge <
+      completedYears(birthMonth, referenceMonth)) {
+    errors[PlanField.ownershipAge] = PlanInputError.outOfRange;
+  }
   if (reserveMonth(
         birthMonth,
         conditions.reserveTargetAge,
       ).compareTo(referenceMonth) <
       0) {
     errors[PlanField.reserveAge] = PlanInputError.pastTargetMonth;
-  } else if (conditions.reserveTargetAge > conditions.ownershipTargetAge) {
-    errors[PlanField.reserveAge] = PlanInputError.exceedsOwnershipAge;
   }
   return errors;
 }

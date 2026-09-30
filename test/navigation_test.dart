@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/app/app.dart';
+
+import 'persistence_app_support.dart';
+
 import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/features/home/presentation/home_screen.dart';
 import 'package:keep_my_car/domain/repair_reserve_calculator.dart';
@@ -17,7 +19,8 @@ void main() {
         birth: const YearMonth(1980, 11),
         reference: const YearMonth(2040, 10),
       );
-      await tester.pumpWidget(KeepMyCarApp(session: plan));
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
       final link = find.text('詳しく見る');
       await tester.ensureVisible(link);
       await tester.tap(link);
@@ -91,9 +94,10 @@ void main() {
                     .copyWith(textScaler: TextScaler.linear(scale)),
                 child: child!,
               ),
-              home: const KeepMyCarApp(),
+              home: testApp(),
             ),
           );
+          await tester.pumpAndSettle();
 
           final link = find.text(destination.$1);
           await tester.ensureVisible(link);

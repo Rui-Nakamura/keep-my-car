@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/save_request.dart';
+import '../../../app/save_progress.dart';
+
 import '../../../app/plan_session.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/planned_expense.dart';
@@ -8,10 +11,18 @@ import '../../../domain/planned_expense_validation.dart';
 import '../../../app/display_format.dart';
 
 class PlannedExpenseEditor extends StatefulWidget {
-  const PlannedExpenseEditor({super.key, required this.session, this.expense});
+  const PlannedExpenseEditor({
+    super.key,
+    required this.session,
+    this.expense,
+    required this.onSave,
+    required this.onDelete,
+  });
 
   final PlanSession session;
   final PlannedExpense? expense;
+  final SaveExpenseRequest onSave;
+  final DeleteExpenseRequest onDelete;
 
   @override
   State<PlannedExpenseEditor> createState() => _PlannedExpenseEditorState();
@@ -25,6 +36,8 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
   late YearMonth _month =
       widget.expense?.plannedMonth ?? widget.session.referenceMonth;
   Map<ExpenseField, ExpenseInputError> _errors = {};
+  bool _saving = false;
+  String? _saveError;
 
   @override
   void dispose() {
@@ -33,7 +46,8 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     final errors = validatePlannedExpense(
       name: _name.text,
@@ -44,16 +58,29 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
     );
     setState(() => _errors = errors);
     if (errors.isNotEmpty) return;
-    final change = widget.session.saveExpense(
-      id: widget.expense?.id,
-      name: _name.text,
-      month: _month,
-      amountYen: int.parse(_amount.text),
-    );
-    Navigator.of(context).pop(change);
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      final change = await widget.onSave(
+        id: widget.expense?.id,
+        name: _name.text,
+        month: _month,
+        amountYen: int.parse(_amount.text),
+      );
+      if (mounted) Navigator.of(context).pop(change);
+    } on SaveRequestFailure catch (error) {
+      if (mounted && !error.uncertain) {
+        setState(() => _saveError = SaveRequestFailure.message);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _delete() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -75,7 +102,20 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
       ),
     );
     if (!mounted || confirmed != true) return;
-    Navigator.of(context).pop(widget.session.deleteExpense(widget.expense!.id));
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      final change = await widget.onDelete(widget.expense!.id);
+      if (mounted) Navigator.of(context).pop(change);
+    } on SaveRequestFailure catch (error) {
+      if (mounted && !error.uncertain) {
+        setState(() => _saveError = SaveRequestFailure.message);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _chooseMonth() async {
@@ -178,48 +218,59 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
   @override
   Widget build(BuildContext context) {
     final title = widget.expense == null ? '予定費を追加' : '予定費を編集';
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenMargin,
-            vertical: AppSpacing.xxl,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Keep the full title readable even when the AppBar is constrained.
-              Text(title, style: Theme.of(context).textTheme.headlineLarge),
-              const SizedBox(height: AppSpacing.xl),
-              _input(ExpenseField.name, '項目名', _name),
-              Text('予定年月', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: AppSpacing.sm),
-              OutlinedButton(
-                key: const ValueKey('expense-input-month'),
-                onPressed: _chooseMonth,
-                child: Text(formatMonth(_month)),
-              ),
-              Text(
-                '${formatMonth(widget.session.referenceMonth)}〜${formatMonth(widget.session.ownershipTargetMonth)}',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              _error(ExpenseField.month),
-              const SizedBox(height: AppSpacing.xl),
-              _input(ExpenseField.amount, '金額（円）', _amount),
-              FilledButton(
-                key: const ValueKey('save-expense'),
-                onPressed: _save,
-                child: Text(widget.expense == null ? '追加' : '保存'),
-              ),
-              if (widget.expense != null) ...[
+    return SaveProgress(
+      saving: _saving,
+      child: Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenMargin,
+              vertical: AppSpacing.xxl,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Keep the full title readable even when the AppBar is constrained.
+                Text(title, style: Theme.of(context).textTheme.headlineLarge),
                 const SizedBox(height: AppSpacing.xl),
+                _input(ExpenseField.name, '項目名', _name),
+                Text('予定年月', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.sm),
                 OutlinedButton(
-                  onPressed: _delete,
-                  child: const Text('この予定を削除'),
+                  key: const ValueKey('expense-input-month'),
+                  onPressed: _chooseMonth,
+                  child: Text(formatMonth(_month)),
                 ),
+                Text(
+                  '${formatMonth(widget.session.referenceMonth)}〜${formatMonth(widget.session.ownershipTargetMonth)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                _error(ExpenseField.month),
+                const SizedBox(height: AppSpacing.xl),
+                _input(ExpenseField.amount, '金額（円）', _amount),
+                if (_saveError != null)
+                  Text(_saveError!, key: const ValueKey('save-error')),
+                FilledButton(
+                  key: const ValueKey('save-expense'),
+                  onPressed: _saving ? null : _save,
+                  child: Text(
+                    _saving
+                        ? '保存中…'
+                        : widget.expense == null
+                        ? '追加'
+                        : '保存',
+                  ),
+                ),
+                if (widget.expense != null) ...[
+                  const SizedBox(height: AppSpacing.xl),
+                  OutlinedButton(
+                    onPressed: _saving ? null : _delete,
+                    child: const Text('この予定を削除'),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

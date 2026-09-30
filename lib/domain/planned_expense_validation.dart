@@ -19,19 +19,28 @@ Map<ExpenseField, ExpenseInputError> validatePlannedExpense({
   required YearMonth referenceMonth,
   required YearMonth ownershipTargetMonth,
 }) {
-  final errors = <ExpenseField, ExpenseInputError>{};
-  final normalized = name.trim();
-  if (normalized.isEmpty) {
-    errors[ExpenseField.name] = ExpenseInputError.required;
-  } else if (normalized.runes.length > 40) {
-    errors[ExpenseField.name] = ExpenseInputError.tooLong;
-  }
+  final errors = validatePlannedExpenseInvariants(name: name, amount: amount);
   if (!isExpenseMonthInRange(
     month,
     referenceMonth: referenceMonth,
     ownershipTargetMonth: ownershipTargetMonth,
   )) {
     errors[ExpenseField.month] = ExpenseInputError.outOfRange;
+  }
+  return errors;
+}
+
+/// Shared fixed rules; persistence does not apply the editor's month window.
+Map<ExpenseField, ExpenseInputError> validatePlannedExpenseInvariants({
+  required String name,
+  required String amount,
+}) {
+  final errors = <ExpenseField, ExpenseInputError>{};
+  final normalized = name.trim();
+  if (normalized.isEmpty) {
+    errors[ExpenseField.name] = ExpenseInputError.required;
+  } else if (normalized.runes.length > 40) {
+    errors[ExpenseField.name] = ExpenseInputError.tooLong;
   }
   if (amount.isEmpty) {
     errors[ExpenseField.amount] = ExpenseInputError.required;

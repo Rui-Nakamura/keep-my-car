@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/app/app.dart';
+
+import 'persistence_app_support.dart';
 
 import 'plan_test_support.dart';
 
@@ -8,7 +9,8 @@ void main() {
   testWidgets('Home is the current summary and four navigation controls', (
     tester,
   ) async {
-    await tester.pumpWidget(const KeepMyCarApp());
+    await tester.pumpWidget(testApp());
+    await tester.pumpAndSettle();
     expect(find.text('70歳まで保有'), findsOneWidget);
     expect(find.text('65歳までに大型修理用として2,000,000円を備える'), findsOneWidget);
     for (final old in [
@@ -41,7 +43,7 @@ void main() {
                   .copyWith(textScaler: TextScaler.linear(scale)),
               child: child!,
             ),
-            home: KeepMyCarApp(
+            home: testApp(
               session: session(
                 initial: conditions(
                   ownership: 100,
@@ -52,6 +54,7 @@ void main() {
             ),
           ),
         );
+        await tester.pumpAndSettle();
         for (final label in [
           '100歳まで保有',
           '100歳までに大型修理用として1,000,000,000円を備える',

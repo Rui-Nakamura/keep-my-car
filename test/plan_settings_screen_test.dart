@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/app/app.dart';
+
+import 'persistence_app_support.dart';
+
 import 'package:keep_my_car/domain/plan_conditions_validation.dart';
 
 import 'plan_test_support.dart';
@@ -29,7 +31,8 @@ void main() {
     'draft is separate, Back discards, valid six-field set returns Home',
     (tester) async {
       final plan = session();
-      await tester.pumpWidget(KeepMyCarApp(session: plan));
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
       await openSettings(tester);
       await enter(tester, 'annualMileage', '6000');
       expect(plan.conditions.annualMileageKm, 4000);
@@ -83,7 +86,8 @@ void main() {
     'empty, decimal, negative, invalid text and range errors never partially apply',
     (tester) async {
       final plan = session();
-      await tester.pumpWidget(KeepMyCarApp(session: plan));
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
       await openSettings(tester);
       await enter(tester, 'annualMileage', '6000');
       for (final invalid in [
@@ -125,7 +129,8 @@ void main() {
   testWidgets(
     'focus loss validates and formats, typing does not show premature errors',
     (tester) async {
-      await tester.pumpWidget(const KeepMyCarApp());
+      await tester.pumpWidget(testApp());
+      await tester.pumpAndSettle();
       await openSettings(tester);
       await enter(tester, 'currentMileage', 'bad');
       expect(find.byKey(const ValueKey('error-currentMileage')), findsNothing);
@@ -154,7 +159,8 @@ void main() {
     'lower ownership retains invalid reserve draft and blocks apply',
     (tester) async {
       final plan = session();
-      await tester.pumpWidget(KeepMyCarApp(session: plan));
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
       await openSettings(tester);
       await tester.ensureVisible(input('ownershipAge'));
       await tester.tap(input('ownershipAge'));
@@ -204,9 +210,10 @@ void main() {
                 .copyWith(textScaler: TextScaler.linear(3)),
             child: child!,
           ),
-          home: KeepMyCarApp(session: plan),
+          home: testApp(session: plan),
         ),
       );
+      await tester.pumpAndSettle();
       await openSettings(tester);
       for (final field in [
         'currentMileage',

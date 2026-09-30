@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/app/app.dart';
+
+import 'persistence_app_support.dart';
+
 import 'package:keep_my_car/app/plan_session.dart';
 import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/features/planned_expenses/presentation/planned_expense_editor.dart';
@@ -85,9 +87,10 @@ Future<void> pumpApp(
             .copyWith(textScaler: TextScaler.linear(scale)),
         child: child!,
       ),
-      home: KeepMyCarApp(session: plan),
+      home: testApp(session: plan),
     ),
   );
+  await tester.pumpAndSettle();
 }
 
 void main() {

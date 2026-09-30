@@ -1,4 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../../../app/save_request.dart';
+import '../../../app/save_progress.dart';
 
 import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/plan_conditions.dart';
@@ -17,7 +22,8 @@ class PlanSettingsScreen extends StatefulWidget {
   final PlanConditions conditions;
   final YearMonth birthMonth;
   final YearMonth referenceMonth;
-  final Map<PlanField, PlanInputError> Function(PlanConditions) onApply;
+  final FutureOr<Map<PlanField, PlanInputError>> Function(PlanConditions)
+  onApply;
 
   @override
   State<PlanSettingsScreen> createState() => _PlanSettingsScreenState();
@@ -29,6 +35,8 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
   final _errors = <PlanField, String>{};
   late int _ownershipAge;
   late int _reserveAge;
+  bool _saving = false;
+  String? _saveError;
 
   @override
   void initState() {
@@ -120,7 +128,8 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
     return errors;
   }
 
-  void _apply() {
+  Future<void> _apply() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     final errors = _validate();
     setState(() {
@@ -129,18 +138,31 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
         ..addAll(errors);
     });
     if (errors.isNotEmpty) return;
-    final rejected = widget.onApply(_candidate());
-    if (rejected.isNotEmpty) {
-      setState(() {
-        _errors.addAll(
-          rejected.map(
-            (field, error) => MapEntry(field, _domainMessage(field, error)),
-          ),
-        );
-      });
-      return;
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    try {
+      final rejected = await widget.onApply(_candidate());
+      if (!mounted) return;
+      if (rejected.isNotEmpty) {
+        setState(() {
+          _errors.addAll(
+            rejected.map(
+              (field, error) => MapEntry(field, _domainMessage(field, error)),
+            ),
+          );
+        });
+        return;
+      }
+      Navigator.of(context).pop();
+    } on SaveRequestFailure catch (error) {
+      if (mounted && !error.uncertain) {
+        setState(() => _saveError = SaveRequestFailure.message);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    Navigator.of(context).pop();
   }
 
   Future<void> _chooseAge(bool ownership) async {
@@ -263,33 +285,38 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('計画設定')),
-    body: SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.screenMargin,
-          vertical: AppSpacing.xxl,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('車・所有計画', style: Theme.of(context).textTheme.headlineLarge),
-            const SizedBox(height: AppSpacing.xl),
-            _number(PlanField.currentMileage, '現在走行距離', 'km'),
-            _number(PlanField.annualMileage, '年間走行距離', 'km / 年'),
-            _age(true),
-            Text('資金計画', style: Theme.of(context).textTheme.headlineLarge),
-            const SizedBox(height: AppSpacing.xl),
-            _number(PlanField.fund, '現在の愛車専用資金', '円'),
-            _age(false),
-            _number(PlanField.reserve, '大型修理予備費', '円'),
-            FilledButton(
-              key: const ValueKey('apply-plan'),
-              onPressed: _apply,
-              child: const Text('この試算に反映'),
-            ),
-          ],
+  Widget build(BuildContext context) => SaveProgress(
+    saving: _saving,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('計画設定')),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenMargin,
+            vertical: AppSpacing.xxl,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('車・所有計画', style: Theme.of(context).textTheme.headlineLarge),
+              const SizedBox(height: AppSpacing.xl),
+              _number(PlanField.currentMileage, '現在走行距離', 'km'),
+              _number(PlanField.annualMileage, '年間走行距離', 'km / 年'),
+              _age(true),
+              Text('資金計画', style: Theme.of(context).textTheme.headlineLarge),
+              const SizedBox(height: AppSpacing.xl),
+              _number(PlanField.fund, '現在の愛車専用資金', '円'),
+              _age(false),
+              _number(PlanField.reserve, '大型修理予備費', '円'),
+              if (_saveError != null)
+                Text(_saveError!, key: const ValueKey('save-error')),
+              FilledButton(
+                key: const ValueKey('apply-plan'),
+                onPressed: _saving ? null : _apply,
+                child: Text(_saving ? '保存中…' : 'この試算に反映'),
+              ),
+            ],
+          ),
         ),
       ),
     ),

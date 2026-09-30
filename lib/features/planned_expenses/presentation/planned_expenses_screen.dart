@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/save_request.dart';
+
 import '../../../app/plan_session.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/planned_expense.dart';
@@ -11,10 +13,14 @@ class PlannedExpensesScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.onChanged,
+    required this.onSaveExpense,
+    required this.onDeleteExpense,
   });
 
   final PlanSession session;
   final VoidCallback onChanged;
+  final SaveExpenseRequest onSaveExpense;
+  final DeleteExpenseRequest onDeleteExpense;
 
   @override
   State<PlannedExpensesScreen> createState() => _PlannedExpensesScreenState();
@@ -24,8 +30,12 @@ class _PlannedExpensesScreenState extends State<PlannedExpensesScreen> {
   Future<void> _edit([PlannedExpense? expense]) async {
     final change = await Navigator.of(context).push<ExpenseChange>(
       MaterialPageRoute(
-        builder: (_) =>
-            PlannedExpenseEditor(session: widget.session, expense: expense),
+        builder: (_) => PlannedExpenseEditor(
+          session: widget.session,
+          expense: expense,
+          onSave: widget.onSaveExpense,
+          onDelete: widget.onDeleteExpense,
+        ),
       ),
     );
     if (!mounted || change == null || change == ExpenseChange.unchanged) return;

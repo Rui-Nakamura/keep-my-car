@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/app/app.dart';
+
+import 'persistence_app_support.dart';
+
 import 'package:keep_my_car/domain/car_validation.dart';
 import 'package:keep_my_car/features/car/presentation/car_name_screen.dart';
 import 'package:keep_my_car/features/home/presentation/home_screen.dart';
@@ -32,7 +34,8 @@ void main() {
     testWidgets('input and paste remove control ${control.codeUnits}', (
       tester,
     ) async {
-      await tester.pumpWidget(const KeepMyCarApp());
+      await tester.pumpWidget(testApp());
+      await tester.pumpAndSettle();
       final original = home(tester).car;
       expect(
         home(tester).onSaveCarName('愛車$control名前'),
@@ -76,7 +79,8 @@ void main() {
   testWidgets('domain rejection uses the control-character error message', (
     tester,
   ) async {
-    await tester.pumpWidget(const KeepMyCarApp());
+    await tester.pumpWidget(testApp());
+    await tester.pumpAndSettle();
     await openEditor(tester);
     // Bypass formatters to exercise the shared validation's defensive path.
     tester.widget<TextField>(nameInput).controller!.text = '愛車\n名前';
@@ -98,7 +102,8 @@ void main() {
       final delta = plan.reserveDeltaYen;
       final notice = plan.homeUpdate;
       calls.reset();
-      await tester.pumpWidget(KeepMyCarApp(session: plan));
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
       expect(find.text('メルセデスAMG E53'), findsOneWidget);
       await tester.tap(find.text('メルセデスAMG E53'));
       await tester.pumpAndSettle();
@@ -134,7 +139,8 @@ void main() {
       plan.apply(conditions(annual: 6000, reserve: 3000000));
       final notice = plan.homeUpdate;
       final delta = plan.reserveDeltaYen;
-      await tester.pumpWidget(KeepMyCarApp(session: plan));
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
       final original = home(tester).car;
       calls.reset();
       for (final value in [original.name, '　 ${original.name}  ']) {
@@ -154,7 +160,8 @@ void main() {
   testWidgets('invalid input and both back paths preserve formal car', (
     tester,
   ) async {
-    await tester.pumpWidget(const KeepMyCarApp());
+    await tester.pumpWidget(testApp());
+    await tester.pumpAndSettle();
     final original = home(tester).car;
     for (final androidBack in [false, true]) {
       await openEditor(tester);
@@ -180,7 +187,8 @@ void main() {
     'formal update also validates; valid settings synchronize mileage',
     (tester) async {
       final plan = session();
-      await tester.pumpWidget(KeepMyCarApp(session: plan));
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
       final original = home(tester).car;
       expect(home(tester).onSaveCarName('　'), CarNameError.required);
       expect(home(tester).onSaveCarName('車' * 41), CarNameError.tooLong);
@@ -228,9 +236,10 @@ void main() {
                   .copyWith(textScaler: TextScaler.linear(scale)),
               child: child!,
             ),
-            home: const KeepMyCarApp(),
+            home: testApp(),
           ),
         );
+        await tester.pumpAndSettle();
         final edit = find.widgetWithText(TextButton, '愛車名を編集');
         expect(tester.getSize(edit).height, greaterThanOrEqualTo(48));
         await openEditor(tester);

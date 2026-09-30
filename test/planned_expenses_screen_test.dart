@@ -31,6 +31,7 @@ Future<void> pumpExpenses(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  final plan = session(expenses: expenses);
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light,
@@ -40,7 +41,9 @@ Future<void> pumpExpenses(
         child: child!,
       ),
       home: PlannedExpensesScreen(
-        session: session(expenses: expenses),
+        session: plan,
+        onSaveExpense: plan.saveExpense,
+        onDeleteExpense: plan.deleteExpense,
         onChanged: () {},
       ),
     ),

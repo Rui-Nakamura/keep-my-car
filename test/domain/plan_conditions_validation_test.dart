@@ -7,6 +7,83 @@ import '../plan_test_support.dart';
 void main() {
   const birth = YearMonth(1970, 4);
   const reference = YearMonth(2026, 9);
+  for (final age in [0, 100]) {
+    test('fixed age boundaries accept ownership and reserve $age', () {
+      expect(
+        validatePlanConditionsInvariants(conditions(ownership: age, age: age)),
+        isEmpty,
+      );
+    });
+  }
+  for (final age in [-1, 101]) {
+    test('fixed ownership age rejects $age', () {
+      expect(
+        validatePlanConditionsInvariants(
+          conditions(ownership: age, age: 0),
+        )[PlanField.ownershipAge],
+        PlanInputError.outOfRange,
+      );
+    });
+    test('fixed reserve age rejects $age', () {
+      final plan = conditions(ownership: 100, age: age);
+      expect(
+        validatePlanConditionsInvariants(plan),
+        contains(PlanField.reserveAge),
+      );
+      expect(
+        validatePlanConditions(
+          plan,
+          birthMonth: birth,
+          referenceMonth: reference,
+        )[PlanField.reserveAge],
+        age == -1
+            ? PlanInputError.pastTargetMonth
+            : PlanInputError.exceedsOwnershipAge,
+      );
+    });
+  }
+  test(
+    'fixed rules omit time checks but retain bounds and target ordering',
+    () {
+      expect(
+        validatePlanConditionsInvariants(conditions(ownership: 55, age: 55)),
+        isEmpty,
+      );
+      final invalid = conditions(
+        mileage: -1,
+        annual: 200001,
+        fund: -1,
+        reserve: 1000000001,
+        ownership: 101,
+        age: 102,
+      );
+      expect(validatePlanConditionsInvariants(invalid), {
+        PlanField.currentMileage: PlanInputError.outOfRange,
+        PlanField.annualMileage: PlanInputError.outOfRange,
+        PlanField.fund: PlanInputError.outOfRange,
+        PlanField.reserve: PlanInputError.outOfRange,
+        PlanField.ownershipAge: PlanInputError.outOfRange,
+        PlanField.reserveAge: PlanInputError.exceedsOwnershipAge,
+      });
+    },
+  );
+  test('editing preserves past-target error priority over target ordering', () {
+    final plan = conditions(ownership: 50, age: 55);
+    expect(validatePlanConditionsInvariants(plan), {
+      PlanField.reserveAge: PlanInputError.exceedsOwnershipAge,
+    });
+    expect(
+      validatePlanConditions(
+        plan,
+        birthMonth: birth,
+        referenceMonth: reference,
+      ),
+      {
+        PlanField.ownershipAge: PlanInputError.outOfRange,
+        PlanField.reserveAge: PlanInputError.pastTargetMonth,
+      },
+    );
+  });
   test('six values have equality and hashCode', () {
     expect(conditions(), conditions());
     expect(conditions().hashCode, conditions().hashCode);

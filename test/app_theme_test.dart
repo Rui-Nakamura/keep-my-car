@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/app/app.dart';
+
+import 'persistence_app_support.dart';
+
 import 'package:keep_my_car/app/theme/app_theme.dart';
 
 void main() {
@@ -9,7 +11,8 @@ void main() {
   ) async {
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
     addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
-    await tester.pumpWidget(const KeepMyCarApp());
+    await tester.pumpWidget(testApp());
+    await tester.pumpAndSettle();
 
     final theme = Theme.of(tester.element(find.byType(Scaffold)));
     expect(theme.brightness, Brightness.light);

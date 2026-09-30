@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/app/app.dart';
+
+import 'persistence_app_support.dart';
+
 import 'package:keep_my_car/app/theme/app_theme.dart';
 import 'package:keep_my_car/domain/models/planned_expense.dart';
 import 'package:keep_my_car/domain/models/year_month.dart';
@@ -281,7 +283,7 @@ void main() {
       'Home computes completed years at $reference and keeps stored mileage',
       (tester) async {
         await tester.pumpWidget(
-          KeepMyCarApp(
+          testApp(
             session: session(
               initial: conditions(mileage: 12345, annual: 2000),
               birth: const YearMonth(1970, 4),
@@ -290,6 +292,7 @@ void main() {
             ),
           ),
         );
+        await tester.pumpAndSettle();
         final link = find.text('未来タイムラインを見る');
         await tester.ensureVisible(link);
         await tester.tap(link);

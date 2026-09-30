@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/app/app.dart';
+
+import 'persistence_app_support.dart';
+
 import 'package:keep_my_car/app/update_feedback.dart';
 import 'package:keep_my_car/domain/models/major_repair_reserve.dart';
 import 'package:keep_my_car/domain/models/ownership_goal.dart';
@@ -199,7 +201,8 @@ void main() {
         timelineCalculator: calls.calculateTimeline,
         reserveCalculator: calls.calculateReserve,
       );
-      await tester.pumpWidget(KeepMyCarApp(session: plan));
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
       await openSettings(tester);
       calls.reset();
       await enter(tester, 'annualMileage', '6000');
