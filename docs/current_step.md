@@ -1,10 +1,228 @@
-# Phase 05 Step 13 — MVP現状棚卸し・残課題再評価
+# Phase 05 Step 14 — Manual Export / Import・データ可搬性設計
+
+## Status
+
+Step 14-1〜14-4の正式仕様確定済み・実装前。以下は実装と検証に対する要求であり、実装完了・受入PASSを示すものではない。
+
+## Step 14の目的と仕様の位置付け
+
+ユーザー自身がKeep My Carの正式入力データを端末外へ持ち出し、端末故障への備え、Android機種変更、再インストール後の復元、将来のAndroid ⇔ iPhone移行を行えることを目的とする。Keep My Car自身のクラウドバックエンドなしで長期利用できることをMUSTとする。
+
+Step 12のアプリ内部backupはSafe Save / Recovery用であり、ユーザーが保管するManual Exportとは別機能である。Step 12の保存・復旧契約を継承し、本節をManual Export / Importの形式・安全性・UX・受入条件の正本とする。Step 13以下の記録は各工程当時の範囲を示す。NoDataからの導線は本Stepで拡張する。
+
+## Step 14：Importの安全原則
+
+以下をMUSTとする。
+
+1. Import成功前に現在の正式Stateを変更しない。
+2. 部分Importを行わない。一部だけ正しいファイルも全体を拒否する。
+3. 外部ファイルから内部currentへ直接上書きしない。
+4. 対象全体の構造・型・値・Domain整合性を完全検証してからcandidate Stateを生成する。
+5. candidateは既存の `KeepMyCarRepository.save(candidate)` / Safe Save経路で保存する。
+6. Safe Save成功後だけ、保存したcandidateの全対象データを同時に正式Stateとして採用する。
+7. Import失敗、Cancel、不正ファイルではcandidateを採用せず、現在の正式Stateを維持する。
+8. Import専用の直接書込み経路を新設しない。
+9. 既存Commit-on-saveと保存中の編集・再送信・戻る抑止を維持する。
+10. rollback issueでは既存の「保存状態不明」処理を使用する。ディスク上の旧データ維持を保証する通常失敗表示や成功演出を出さず、同じRepositoryの再loadで保存状態を確認する。
+
+Import前データ保護には既存Safe Saveのbackup 1世代を利用する。このbackupはSafe Save / Recovery用であり、ユーザー操作によるUndo機能ではない。「Importを取り消して元へ戻す」機能としては保証しない。初回保存でbackupを作らない既存ルールも維持する。ユーザーが確実に現在データを保持したい場合はImport前にManual Exportを行うよう推奨するが、強制しない。Import専用backup履歴、複数世代backup、Undo履歴、履歴画面、自動Import前Export、自動クラウドbackupは追加しない。OS停止・電源断を含む完全なtransaction保証はStep 12同様に行わない。
+
+## Step 14：Export v1の論理形式
+
+内部Persistence JSONをそのまま公開せず、Export専用の薄いEnvelopeを使う。内部の `formatVersion` と外部の `exportFormatVersion` は別管理とし、内部形式の変更を外部形式へ自動伝播させない。
+
+ファイルは平文UTF-8 JSON、拡張子は `.kmcbackup`。この拡張子は識別用であり暗号化を意味しない。推奨ファイル名は `KeepMyCar_Backup_YYYYMMDD_HHmmss.kmcbackup`（例：`KeepMyCar_Backup_20261001_093800.kmcbackup`）とし、車名等を含めない。
+
+### Envelope
+
+| field | JSON型・意味 |
+|---|---|
+| `format` | string、`keep-my-car-backup` |
+| `exportFormatVersion` | integer、初回は `1` |
+| `createdAt` | 必須string、ISO 8601としてparse可能な書出し日時（例：`2026-10-01T09:30:00+09:00`）。Domainの年月とは区別する |
+| `data` | object、下記の正式入力データ |
+
+Exportには上記metadataを含める。`appVersion` は必要な場合に任意metadataとして検討できるが、Import互換判定には使わない。MVPの互換判定は `format` と対応する `exportFormatVersion` による。`createdAt` はImport互換性判定、バックアップの新旧優先判定に使用せず、復元するデータ内容そのものには影響させない。対応中の `exportFormatVersion` で未知の追加fieldが存在する場合、そのfieldを無視してImportを継続する。未知fieldを理由に拒否せず、必須field・型・値・整合性検証は省略しない。
+
+古いアプリは対応できない新しいExport versionを拒否する。将来の新しいアプリは可能な範囲で過去versionをImportできる設計とするが、MVPで大規模Migration frameworkは作らない。
+
+### dataと既存Domain / serializerの対応
+
+以下は既存 `KeepMyCarDataDto`、`KeepMyCarJsonCodec`、`KeepMyCarDataMapper` とDomain Modelのfield名・型・年月表現に合わせたExport v1の契約である。Domain fieldを追加しない。表中のfieldは必須で、`memo` だけ値としてnullを許可する（キー欠損とは区別する）。objectはJSON object、配列はJSON arrayとする。
+
+| object | field | JSON型・表現 |
+|---|---|---|
+| `data` | `ownerBirthMonth` | string、`YYYY-MM` |
+| `data` | `car` | object、Car |
+| `data` | `planConditions` | object、PlanConditions |
+| `data` | `plannedExpenses` | array、PlannedExpense objectの一覧。空配列可 |
+| `car` | `name` | string |
+| `car` | `firstRegistrationMonth`, `mileageCheckedMonth` | string、`YYYY-MM` |
+| `car` | `currentMileageKm`, `annualMileageKm` | integer、km |
+| `planConditions` | `currentMileageKm`, `annualMileageKm` | integer、km |
+| `planConditions` | `ownershipTargetAge`, `reserveTargetAge` | integer、歳 |
+| `planConditions` | `currentCarFundYen`, `largeRepairReserveYen` | integer、円 |
+| `plannedExpenses[]` | `id` | integer、既存予定費ID |
+| `plannedExpenses[]` | `name` | string |
+| `plannedExpenses[]` | `amountYen` | integer、円 |
+| `plannedExpenses[]` | `plannedMonth` | string、`YYYY-MM` |
+| `plannedExpenses[]` | `basis` | string、`quoted` / `selfEstimate` / `placeholder` |
+| `plannedExpenses[]` | `memo` | stringまたはnull |
+| `plannedExpenses[]` | `status` | string、`planned` / `completed` |
+
+年月は既存 `validateStorageMonth` と同じASCII数字4桁の年・ハイフン・2桁の月（01〜12）の7文字とする。年月へ日・時刻・timezoneを追加しない。予定費はID、元List順、basis、memo、statusを含めて保持し、同月の表示順や個別同一性を失わない。名称・年月・金額が同じ別IDの予定費は許可する。
+
+Export対象は現在の正式Stateの `ownerBirthMonth`、Car、PlanConditions、PlannedExpensesのみ。FutureTimeline結果、RepairReserve結果、pending、diff、draft、UI一時状態、`referenceMonth`、`nextId`、内部 `formatVersion` は含めない。Import後のderived stateは正式入力から既存の決定論的計算で再計算する。`referenceMonth` は既存どおりアプリ起動時の端末ローカル年月を使用し、ファイルから復元しない。
+
+### OS非依存と機密性
+
+Android内部path、URI、package固有情報、class名、専用identifier、内部directory構造、SQLite等の物理保存方式依存情報を含めない。将来iOSでも同じExport v1をImportできる論理形式を維持し、iOS用の別バックアップ形式を新設する前提にしない。
+
+MVPではdigital signature、秘密鍵基盤、password protection、独自暗号化を導入しない。安全性の中心はImport時のformat・version・structure・type・value・Domain consistency検証とする。ユーザーへ「バックアップファイルには、車両情報や計画金額など入力した情報が含まれます。第三者へ共有しないようご注意ください。」等の注意を表示する。
+
+## Step 14：Import validationと採番
+
+ファイル読込可能・JSON parse可能を確認後、Envelope object、`format` の存在と一致、`exportFormatVersion` の存在・型・対応可否、`createdAt` の存在・string型・ISO 8601としてparse可能であること、`data` の存在・object構造を確認する。`createdAt` の欠損・型不正・ISO 8601形式不正はImport拒否とする。dataは上記schemaの必須field、型、配列構造、年月、金額、走行距離、enum値、ID、ID重複、各予定費と全体のDomain整合性を検証する。欠損を既定値で補完したり、不正項目を捨てて残りだけImportしたりしない。
+
+`.kmcbackup` はUX上の識別用であり、Importの正否は拡張子だけではなくファイル内容で判定する。ファイル名・拡張子が変更されていても、上記のJSON・format・exportFormatVersion・必須構造・Domain validationを含む全検証を満たす正式Keep My Car Export形式ならImport可能とする。逆に `.kmcbackup` でも内容が不正なら拒否する。Android / iOS / クラウドストレージ間の移行でファイル名が変わっても、同じ論理形式で判定する。
+
+Domain検証はStep 12「Persistenceによる保存・復元のvalidation」の時間に依存しない固定ルールを再利用する。具体的には既存 `validateCarName`、`validatePlanConditionsInvariants`、`validatePlannedExpenseInvariants` とMapperの整合性検証に従う。
+
+- Carの名称はtrim前のCR / LF / Tab禁止を確認し、trim後1〜40 runes。予定費名称も既存どおりtrim後1〜40 runesとする。
+- 現在走行距離は0〜2,000,000km、年間走行距離は0〜200,000km。資金・大型修理予備費・各予定費は整数0〜1,000,000,000円とする。
+- 目標年齢は両方0〜100歳、`reserveTargetAge <= ownershipTargetAge` を要求する。
+- CarとPlanConditionsの現在・年間走行距離はそれぞれ一致必須。不一致を自動同期して通さない。
+- 保存から時間が経過したこと、目標年月が過去になったこと、予定費が現在の編集可能年月範囲外であることだけを理由に拒否しない。新規入力・編集用の時点依存validationをImportへ適用しない。ownerBirthMonthにも未来の生年月等の新しい業務制約を追加しない。
+- IDは既存のinteger型と重複禁止の契約に従い、そのまま保持する。既存Domain / MapperにはIDの正数限定等の値域制約はないため、Import独自の制約や再採番を追加しない。未知の追加fieldはEnvelope節の規則に従って無視するが、未知enum値や必須fieldの欠損・型不正、Domain不正値、ID重複、データ間不整合は全体拒否とする。
+
+`nextId` はExportしない。既存保存・復元経路ではRepository自身が採番するのではなく、復元一覧を受け取る `PlanSession` が `_nextExpenseId = 1` から開始し、各予定費の `id >= _nextExpenseId` の場合に `_nextExpenseId = id + 1` へ更新する（空一覧なら1）。Import後もこの既存処理を再利用し、Import専用の採番ロジックを作らない。新規追加のID消費は従来どおり保存成功後とする。
+
+## Step 14：通常Export / ImportとUI
+
+既存Homeの「設定」は `PlanSettingsScreen` への導線である。この導線を基本に「設定 → データ管理 → データを書き出す / バックアップから復元する」程度の小さな構成とし、不要なバックアップ管理・履歴画面を追加しない。既存の計画設定6項目の意味は変えない。
+
+### データを書き出す
+
+現在の正式State → Export data生成 → Envelope生成 → OS標準保存UI → ユーザーが保存先を選択 → 書込み → 成功の順とする。書込み完了後に「バックアップを書き出しました」等を表示する。Cancelはエラー扱いしない。
+
+保存先への書込み失敗、容量不足、Provider側エラー、OS側I/O失敗では成功表示を出さず、Exportを保存成功扱いにしない。アプリ内部の正式データを変更せず、Error UXに従った平易なエラーを表示する。OS内部エラーやexception等をそのまま表示しない。
+
+### バックアップから復元する
+
+OS標準ファイル選択 → 読込 → Envelope parse → format確認 → version確認 → 構造検証 → 型検証 → 値検証 → データ間整合性検証 → candidate生成 → 置換確認 → `Repository.save(candidate)` → Safe Save成功 → 全正式State採用 → derived state再計算 → Homeの順とする。
+
+validation成功後・save前に、例えば以下を表示する。Cancelでは保存しない。
+
+> 現在のデータを置き換えます
+>
+> バックアップから復元すると、現在のKeep My Carデータは置き換わります。
+>
+> 必要な場合は、先に現在のデータを書き出してください。
+>
+> ［キャンセル］［復元する］
+
+成功後は「バックアップからデータを復元しました」等を表示する。Timeline・Repair Reserve等はファイル内の計算結果を使用せず、復元した正式入力から再計算する。
+
+### 初回起動時の復元
+
+現在データがない `NoData` では「新しく設定する」「バックアップから復元する」の選択導線を設ける。「新しく設定する」は従来の1画面・3区画・10項目の初期設定へ進む。
+
+初回復元もファイル選択 → 通常Importと同じ完全validation → candidate生成 → `Repository.save(candidate)` → Safe Save成功 → 正式State採用・derived state再計算 → Homeとする。置換対象がないため現在データの置換確認は不要とし、成功時は初期設定10項目を省略する。Cancel・不正ファイル・通常保存失敗ではデータを採用せず初回選択画面へ戻れること。rollback issueは初回でも保存状態不明処理を優先する。
+
+既存 `PersistentPlanState.initialize` は空の予定費と新規入力用validationを前提とするため、初回Importにその制約を流用しない。複数予定費を含む過去のバックアップも同じ復元契約で扱い、保存自体は既存Repository / Safe Save経路を共用する。Loaded / Recovered / FailureをNoDataとみなして初期化しない。保存状態不明からの再loadがNoDataの場合も上記選択導線へ進む。
+
+### Failure状態からの復元
+
+`LoadFailure` のFailure画面にも「バックアップから復元する」導線を設ける。FailureをNoDataとして扱わず、既存破損状態を初期化扱いにしない。既存の再読込導線を維持し、Failure状態でも外部バックアップの完全validationを可能とする。
+
+ファイル選択 → 完全validation → candidate生成 → Failure用の復元確認 → `Repository.save(candidate)` / Safe Save → 成功後のみ正式Stateをcandidateへ切替 → derived state再計算 → Homeとする。現在データを正常に読めていないため、通常Importの「現在のデータを置き換えます」とは分けて確認する。例えば「保存されているデータを読み込めません。バックアップから復元できます。」に続けて「バックアップから復元すると、現在読み込めない保存データはバックアップの内容で置き換わり、元に戻せません。」と表示し、ユーザーが復元前に置換と不可逆性を理解できるようにしたうえで、［キャンセル］［復元する］を提示する。
+
+Failureからの復元にも既存Safe Saveを使用するが、現在のcurrentが読めない場合、そのcurrentがbackupへ退避されることは既存Safe Save規則上保証しない。そのため、ユーザーにとって不可逆操作になり得る。特別なbackup処理やUndo機能は追加しない。
+
+Cancel・validation失敗・Import途中の失敗・通常save失敗ではcandidateを採用せず、既存Failure状態を維持する。save失敗だけでFailureを正常化しない。rollback issue時は既存の保存状態不明処理を優先し、正常化せず同じRepositoryの再loadで確認する。
+
+既存 `PersistentPlanState` の通常保存経路はFailure中の保存を拒否するため、FailureからのImportでは検証済みcandidateを既存Repository / Safe Saveへ渡せるようにすることを要求する。Failureを一時的にNoDataや正常状態へ変更して保存制約を回避したり、直接書込み経路を追加したりしない。
+
+### Android Platform I/O
+
+OS標準Document UIを利用する。Exportは `ACTION_CREATE_DOCUMENT` 相当、Importは `ACTION_OPEN_DOCUMENT` 相当とする。広域ストレージ権限、全ファイルアクセス権、フォルダ全体アクセス権は要求しない。1回のImportは1ファイル。Keep My Car自身がGoogle Drive / OneDrive / Dropbox APIへ直接接続しない。
+
+OSファイル選択UIではファイル種別を過度に狭く限定せず、ファイル名・拡張子変更後の正式Exportファイルも選択可能とする。Import可否は前述の内容検証で決定する。
+
+Flutter packageは固定しない。package都合で仕様を変えず、追加が必要な場合は既存開発ルールの事前承認に従う。
+
+### Error UX
+
+ユーザーへJSON、schema、parse error、Repository、exception、stack trace等の開発用語を表示しない。表示例は以下とする。
+
+| 状況 | 表示例・扱い |
+|---|---|
+| Export書込み失敗 | バックアップを書き出せませんでした。保存先を確認して、もう一度お試しください。 |
+| Keep My Car形式ではない | このファイルはKeep My Carのバックアップではありません |
+| 破損・構造不正 | このバックアップファイルは読み込めません |
+| 対応できない新しいversion | このバックアップは、より新しいバージョンのKeep My Carで作成されています |
+| 内容不正 | このバックアップファイルの内容に問題があります |
+| 通常のsave失敗（正常に読めた既存データあり） | データを復元できませんでした。現在のデータは変更されていません |
+| 初回復元の通常save失敗 | 復元できなかった旨を平易に表示し、初回選択画面へ戻れる |
+| Failureからの復元で通常save失敗 | データを復元できませんでした。Failure状態と復元・再読込導線を維持する |
+| rollback issue | 既存の保存状態不明処理。旧データ維持を断定しない |
+| Cancel | エラー表示なし |
+
+## Step 14：テスト・受入条件
+
+以下は実装後に満たすべき検証要件であり、検証結果の記録ではない。既存テストを都合よく弱めない。
+
+| 分類 | 最低限の検証 |
+|---|---|
+| Export | 正常Export、format一致、exportFormatVersion = 1、createdAt、ownerBirthMonth・Car・PlanConditions・PlannedExpensesの全field、空予定費、日本語、金額、年月、複数予定費、UTF-8、derived state・nextId非包含。その他の非Export項目も含めない |
+| Export失敗 | 保存先書込み失敗（容量不足・Provider側エラー・OS側I/O失敗を含む）で平易なエラーを表示し、成功表示なし・アプリ内部State不変 |
+| Import validation | 正常v1、malformed JSON、format欠損・不正、version欠損・新しすぎるversion、data欠損、必須field欠損・型不正、金額不正、年月不正、Domain不正値、ID型不正・重複、Car / PlanConditions不整合、未知enum、日本語、空予定費。createdAt欠損・型不正・ISO 8601形式不正は拒否 |
+| Unknown extra field | 対応中のexportFormatVersionで未知追加fieldだけがある場合は、そのfieldを無視してImport成功。必須field欠損・型不正、Domain不正値・データ不整合も併存する場合は拒否 |
+| ファイル名・拡張子 | 正しい内容でファイル名・拡張子変更済みでも選択・Import可能。`.kmcbackup` でも内容不正ならImport拒否 |
+| データ保持 | 予定費のID・元List順・basis・memo（null含む）・status、同内容の別ID、過去／保有期間外の予定費、時間経過後の目標年月を保持してImportできる。復元後の追加に既存採番を使う |
+| Transaction Safety | validation失敗、置換確認Cancel、Repository.save失敗、Import途中exceptionで正式State不変。Safe Save成功時のみcandidate採用、rollback issue時の保存状態不明、部分的に正しいファイルの全体拒否、成功時の全対象データ同時更新 |
+| 初回起動復元 | NoData初回選択、新しく設定する、バックアップから復元する、正常Import、初期設定10項目省略、Home、ファイル選択Cancel、不正ファイル、save failure、復元後の完全終了→再起動→Loaded |
+| Failureからの復元 | Failure画面の復元導線、NoDataへ変更せず完全validation・candidate生成、通常置換確認と異なる確認、Safe Save成功後のみ採用・Home。Cancel・Import失敗・通常save失敗ではFailure維持、rollback issueでは保存状態不明処理 |
+| Step 12回帰 | NoData、Loaded、Recovered、Failure、Safe Save、backup recovery、Commit-on-save、rollback issueの既存テスト維持 |
+
+Golden Sampleのround-tripは、Golden Sample → Export → 別Stateへ変更 → Import → Golden Sampleの正式入力へ完全復元を検証する。正式入力の全fieldと予定費の順序はExport前と完全一致し、derived stateは復元入力から再計算して期待値と一致すること。Golden Sampleの期待値確認には同じ固定referenceMonthを用い、実利用時に現在年月で再計算する契約と区別する。Golden Sample固有値をDomainへ埋め込まない。
+
+### Pixel 6a実機受入
+
+- Export：OS保存UI、任意保存先の選択、`.kmcbackup` の存在、ファイル名仕様、完了表示。
+- 通常Import：データを変更した状態からファイル選択、validation、置換確認、復元、Home / Timeline / Repair Reserveへの反映。
+- 再起動：Import成功 → アプリ完全終了 → 再起動 → Repository.load → Loaded → 復元State維持。
+- 初回起動相当：アプリデータなし → 初回選択 → バックアップから復元 → 初期設定10項目不要 → Home → 再起動後も保持。
+- 異常系：破損ファイル・unsupported version拒否、既存データ維持、開発用語非表示。
+- release buildでも最低限Export → Import → 完全終了 → 再起動の1往復を確認する。
+
+### 将来iOS受入
+
+Android MVPではiPhone実機確認を完了条件としない。Android側で文書化されたschema、version付き、OS非依存、Android固有値なしを保証する。将来iOS実装時には「Android版で過去に作成されたExport v1ファイルをiOS版でImportできること」を必須Regression Testとする。
+
+### Step 14完了条件
+
+以下をすべて満たした場合だけStep 14完了とする。
+
+| 分類 | 完了条件 |
+|---|---|
+| Functional | Export・通常Import・初回Import・FailureからのImport・Cancelが可能 |
+| Safety | 不正Importで現在データを壊さない、save成功前に正式Stateを変更しない、部分Importしない、Safe Save利用、保存状態不明処理維持 |
+| Portability | Export versionあり、OS非依存、Android固有情報なし、将来iOSで読める論理形式 |
+| UX | 平易な日本語、開発用語非表示、置換確認、データ機密性注意、初回起動復元導線 |
+| Test | 新規テスト・既存回帰・Golden Sample・Pixel 6a・完全終了→再起動・release build基本確認がすべてPASS |
+
+実装と検証、独立read-onlyレビュー、正式変更の承認手順は [Development Workflow](development_workflow.md) とAGENTS.mdに従う。文書への仕様反映だけを実装開始承認やStep 14完了と扱わない。
+
+---
+
+## Step 13 — MVP現状棚卸し・残課題再評価（完了記録・継承）
 
 ## Status
 
 Completed.
 
-Step 12までのMVP全体の棚卸し・残課題再評価を完了し、販売可能な初回MVPの範囲を絞り込んだ。次工程はStep 14 Manual Export / Importであり、まだ未実装。本Step 13は文書整理のみで、コード実装は行っていない。
+Step 12までのMVP全体の棚卸し・残課題再評価を完了し、販売可能な初回MVPの範囲を絞り込んだ。次工程をStep 14 Manual Export / Importとした。本Step 13は文書整理のみで、コード実装は行っていない。Step 14の正式仕様と進行状況は本書冒頭を参照する。
 
 ## Step 13の目的と完了結果
 
@@ -43,7 +261,7 @@ Step 12までのMVP全体の棚卸し・残課題再評価を完了し、販売�
 
 Manual Export / Importは正式MVP要件のMUSTとして維持する。長期利用、端末故障対策、機種変更、将来のAndroid ⇔ iPhone移行のため、ユーザーがデータを持ち出し、復元できることを目的とする。
 
-Step 12の内部 `current / temp / backup` はSafe Save用であり、ユーザーが持ち出せるManual Export / Importとは別物である。内部backupの実装によってこのMUSTを満たしたとは扱わない。Importは既存データを壊さない安全設計を前提とする。Step 14で扱うが、今回は実装しない。具体的なExport形式・Import手順等の未確定事項はここでは決定しない。
+Step 12の内部 `current / temp / backup` はSafe Save用であり、ユーザーが持ち出せるManual Export / Importとは別物である。内部backupの実装によってこのMUSTを満たしたとは扱わない。形式・Import手順・安全性の正式仕様は本書冒頭のStep 14を参照する。
 
 ## UI/UX販売前改善候補
 
@@ -100,7 +318,7 @@ Step 12の内部 `current / temp / backup` はSafe Save用であり、ユーザ�
 
 現時点はWindows開発であり、iOSはMac導入後に進める後続プラットフォーム工程とする。英語・USD・EUR・複数車両等の必要性そのものを再評価する任意機能とは区別し、初回Android MVP完成のブロッカーにしない。Android版完成をMac購入まで止めない。実際のApp Store公開時期はその時点で改めて判断し、直ちに販売することを確定するものではない。
 
-Android ⇔ iPhoneのデータ可搬性はMVP全体のMUSTとして維持する。ただし初回Android MVPでiOSアプリ自体の実装は要求しない。ExportにはOS固有形式に閉じないversion付きの論理データ形式を用い、後続のiOS実装でも同じ論理形式をImportできる設計を維持する。Exportファイルの詳細形式はStep 14で決定し、iOS版やOS間移行が実装済みであるとは扱わない。
+Android ⇔ iPhoneのデータ可搬性はMVP全体のMUSTとして維持する。ただし初回Android MVPでiOSアプリ自体の実装は要求しない。Exportの形式・将来iOS互換性の受入条件は本書冒頭のStep 14を参照し、iOS版やOS間移行が実装済みであるとは扱わない。
 
 ## Step 14〜18の正式ロードマップ
 
@@ -108,7 +326,7 @@ Android ⇔ iPhoneのデータ可搬性はMVP全体のMUSTとして維持する�
 
 | 工程 | 目的・主対象 |
 |---|---|
-| Step 14：Manual Export / Import | ユーザーデータの持ち出し、復元、機種変更、将来のOS間移行基盤、Import安全性。次工程・未実装 |
+| Step 14：Manual Export / Import | ユーザーデータの持ち出し、復元、機種変更、将来のOS間移行基盤、Import安全性。正式仕様は本書冒頭参照 |
 | Step 15：UI/UX販売品質改善 | 年月入力、保存成功フィードバック、保存失敗／Recovery表示、Home、0円表示、金額・走行距離の可読性、UI全体の商品感、Keep My Car専用アプリアイコン。新しい大型機能は追加しない |
 | Step 16：Release Candidate品質検証 | 主要ユーザールート、異常系、Export / Import、Safe Save / Recovery、複数画面サイズ、Golden Sample回帰、`flutter analyze`、`flutter test`、Android release、Claude Cowork read-only最終レビュー |
 | Step 17：Android / Google Play販売準備 | 正式商品名確認、専用アイコン・Store素材、スクリーンショット、ストア説明、Privacy、利用条件／免責、FAQ、サポート方針、価格、Google Play提出準備 |
@@ -194,7 +412,7 @@ E2では実ファイル保存・読込、current / temp / backup、backupから�
 
 ## 実装状態の整理
 
-Step 7〜11は完了済みであり、第29節の愛車表示名編集も実装済みとする。既存機能の実装状態を以下のとおり整理する。Step 12の完了状態は上記の承認・実装状態に従う。現在の工程は冒頭のStep 13結果に従う。
+Step 7〜11は完了済みであり、第29節の愛車表示名編集も実装済みとする。既存機能の実装状態を以下のとおり整理する。Step 12の完了状態は上記の承認・実装状態に従う。現在の工程は本書冒頭のStatusに従う。
 
 | 対象 | 現在の実装状態 |
 |---|---|

@@ -51,16 +51,16 @@ Phase 05 Step 13で初回MVPの範囲を再評価した。中核は所有者情�
 
 - ユーザーデータの手動Export（エクスポート）と手動Import（インポート）は、MVP全体のMUSTとする。
 - 長期利用、端末故障・紛失への備え、および機種変更時のデータ移行を目的とする。Android → Android、iPhone → iPhone、Android ⇔ iPhoneのデータ可搬性はMVP全体のMUSTとして維持する。
-- Step 13判断として、初回Android MVPではiOSアプリ自体の実装は要求しない。OS固有形式に閉じないversion付きの論理Export形式を用い、後続のiOS実装でも同じ論理形式をImportできる設計によって将来互換性を担保する方針とする。Exportファイルの詳細形式はStep 14で決定し、ここではJSON schema等を確定しない。
+- Step 13判断として、初回Android MVPではiOSアプリ自体の実装は要求しない。OS固有形式に閉じないversion付きの論理Export形式を用い、後続のiOS実装でも同じ論理形式をImportできる設計によって将来互換性を担保する方針とする。詳細仕様・受入条件は [current_step.mdのStep 14](current_step.md) を正本とする。
 - 現在はWindows開発であり、iOSはAndroid初回MVP後、Mac導入後に進める後続プラットフォーム工程とする。必要性そのものを再評価する任意機能とは区別する。初回Android MVP完成のブロッカーにせず、Android版完成をMac購入まで止めない。実際のApp Store公開時期はその時点で改めて判断する。
 - 基本方向はローカル保存＋ユーザー操作による手動Export / Importとする。自動クラウド同期は初回MVPから除外する。
 - MVPは引き続き原則サーバなし、ユーザーアカウントなし、クラウド認証なし、個人情報のサーバ保存なしとし、可能な限りオフラインで利用できるものとする。
 
 MUSTは製品要件であり、実装済みを意味しない。現在の実装状態は [current_step.md](current_step.md) を参照する。
 
-Step 12の内部 `current / temp / backup` はSafe Save用であり、ユーザーが持ち出せるManual Export / Importとは別物である。Manual Export / ImportはStep 14で扱う未実装のMUSTであり、Importは既存データを壊さない安全設計を前提とする。
+Step 12の内部 `current / temp / backup` はSafe Save用であり、ユーザーが持ち出せるManual Export / Importとは別物である。Manual Export / ImportはStep 14で扱うMUSTであり、Importは既存データを壊さない安全設計を前提とする。
 
-具体的な保存方式・データ形式・利用package、保存DTO構造、schema version、migration方式、export file拡張子、暗号化方式、import時validation、corrupted file対応は永続化設計で決定し、本Baselineでは定めない。
+内部保存方式・保存DTO・Safe Save / Recoveryは `current_step.md` のStep 12、外部Export形式・version・拡張子・暗号化方針・Import validation・破損ファイル対応は同文書のStep 14に従う。本Baselineには詳細仕様を重複記載しない。
 
 ## Technical Baseline
 
