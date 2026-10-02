@@ -9,6 +9,7 @@ import 'package:keep_my_car/features/timeline/future_timeline_calculator.dart';
 import 'package:keep_my_car/persistence/keep_my_car_data_dto.dart';
 import 'package:keep_my_car/persistence/keep_my_car_data_mapper.dart';
 import 'package:keep_my_car/persistence/keep_my_car_json_codec.dart';
+import 'package:keep_my_car/persistence/keep_my_car_payload_codec.dart';
 import 'package:keep_my_car/sample_data/golden_sample.dart';
 
 import '../plan_test_support.dart' show conditions;
@@ -230,6 +231,40 @@ void main() {
 
   test('DTO encodes to exact logical JSON schema', () {
     expect(jsonDecode(codec.encode(codec.decode(jsonEncode(wire())))), wire());
+  });
+
+  test('internal encoding preserves exact fixture bytes and field order', () {
+    final source = jsonEncode(wire());
+    expect(
+      utf8.encode(codec.encode(codec.decode(source))),
+      utf8.encode(source),
+    );
+  });
+
+  test('payload round trip needs no version and emits only input fields', () {
+    const payload = KeepMyCarPayloadCodec();
+    final expected = wire()..remove('formatVersion');
+    final dto = payload.decode(expected);
+    expect(dto.formatVersion, 1);
+    expect(payload.encode(dto), expected);
+    expect(payload.encode(dto).keys, [
+      'ownerBirthMonth',
+      'car',
+      'planConditions',
+      'plannedExpenses',
+    ]);
+    expect(codec.encode(dto), jsonEncode(wire()));
+  });
+
+  test('payload does not interpret unknown version metadata', () {
+    const payload = KeepMyCarPayloadCodec();
+    final expected = wire()..remove('formatVersion');
+    final input = {...expected, 'formatVersion': 'not payload metadata'};
+    final dto = payload.decode(input);
+    expect(dto.formatVersion, 1);
+    expect(payload.encode(dto), expected);
+    expect(input['formatVersion'], 'not payload metadata');
+    expect(() => codec.decode(jsonEncode(input)), throwsFormatException);
   });
 
   test(

@@ -2,7 +2,39 @@
 
 ## Status
 
-Step 14-1〜14-4の正式仕様確定済み・実装前。以下は実装と検証に対する要求であり、実装完了・受入PASSを示すものではない。
+Step 14-1〜14-4の正式仕様確定済み。`Step 14-1〜14-4` は仕様策定工程、`14-A1〜14-D` はその確定仕様を実現する実装工程を示す。
+
+実装工程の構成と完了済みcheckpointは以下のとおり。
+
+| 実装工程 | 内容・checkpoint |
+|---|---|
+| 14-A1：Persistence payload共用化 | 正式入力4field（ownerBirthMonth・Car・PlanConditions・PlannedExpenses）の共用変換処理を分離。内部Persistence形式は変更せず、Step 12の保存・検証動作を維持。実装・検査・独立レビュー完了 |
+| 14-A2：Backup v1形式／読込処理 | OS非依存のBackup v1形式（`format`・`exportFormatVersion`・`createdAt`・`data`）とExport / Import変換を実装。既存validationを再利用し、不正Backupを拒否。実装・検査・独立レビュー完了 |
+| 14-B：安全な復元処理 | 検証済みcandidateを既存Safe Saveへ接続。保存成功前は正式State不変、成功後のみ一括採用。NoData / Failure / Recovered / readyからの安全な復元、rollback issue時の既存保存状態不明処理、既存処理によるPlanSession / nextId再構築を実装。実装・検査・独立レビュー完了 |
+| 14-C1：ファイル保存・選択方式の調査 | `file_picker 13.1.0`・`flutter_file_dialog 3.3.3`を調査し、不採用と判断 |
+| 14-C2：Android最小Platform Channel検証 | 保存／読込みの安全契約を実装。Flutterテスト・Kotlin検証・Android build・Pixel 6a基本5項目PASS。実機上書きはProviderの別名保存により未実施。`"wt"`契約をコード・自動テスト・ソース検査で補強。最終read-onlyレビューPASS WITH COMMENTSを経て自前方式を正式採用 |
+| 14-C：本番接続 | 14-C2の正式採用方式を本番のバックアップ書き出し／復元処理へ接続する後続工程 |
+| 14-D：UI / UX | 14-Cに続く実装工程：Export / Importの導線・確認・結果表示 |
+
+14-A1＋14-A2＋14-BのClaude Cowork read-onlyレビュー結果はPASS WITH COMMENTS。Blocker・Major・コード上のMinorはなく、14-Cへの進行はYES。Step 14全体の完了判定は、後述の受入条件に従う。
+
+### Step 14-C2：Android Platform File I/O検証
+
+- `file_picker 13.1.0`は、保存時にStream取得に失敗してもsuccessになり得る経路があったため不採用。
+- `flutter_file_dialog 3.3.3`は、Provider例外時にFlutter側へ結果が返らない経路があったため不採用。
+- Androidの最小限の自前Platform Channel方式は、Claude Coworkの最終read-onlyレビューPASS WITH COMMENTSを経て正式採用した。本番接続工程への進行可と判断された。
+- Pixel 6aの検証用APKで保存・保存Cancel・読込み・読込みCancel・bytes完全一致の基本5項目PASS。既存の大きい同名ファイルへの上書きは、Providerが既存URIを返さず`(1)`付き別ファイルを作成したため未実施であり、アプリ側の失敗ではない。
+- アプリは切り詰めmode `"wt"`を要求し、拒否された場合はerrorとする。コード・偽出力先の自動テスト・Android呼出しのソース検査で契約を補強済みだが、`"wt"`を受け付けながら切り詰めない等、仕様に反するProviderの動作までは保証しない。
+- `MainActivity`は`FlutterActivity`を維持し、新しいActivityは追加していない。Channel登録・結果転送・cleanupとrequest watermarkの保存／復元を追加し、実I/Oは専用classへ分離している。
+
+### Step 14-B：検証済みバックアップの安全な復元
+
+- 14-A2の `BackupImportSuccess.data` を受け取る明示的な復元操作を `PersistentPlanState` に追加する。固定ルールの検証を複製せず、既存 `Repository.save(candidate)` / Safe Save / commit callback / notifyを共用する。
+- 通常・Recovered・NoData・Failureから開始可能とする。loading・保存中・保存状態不明・他処理実行中は開始させない。Failureの許可は明示的な復元だけとし、通常保存の制約を維持する。
+- candidateの予定費を固定し、保存前に独立した `PlanSession` を事前構築する。計算・採番の再構築には既存Session処理を利用し、正式Stateへの採用は保存成功後のみとする。保存後のSession生成例外による保存内容と画面の不一致を避ける。
+- 保存成功後の同期的なcommit callbackでowner・Car・PlanConditions・PlannedExpensesを一括採用し、readyへ移行して通知する。保存前に現在の正式データ・Sessionを変更しない。
+- candidate準備・Session構築・復元途中の予想外の例外と通常保存失敗では、元の正式データ・Session・開始状態を維持する。`rollbackIssues` がある場合のみ既存uncertainへ移行し、同じRepositoryの再loadを利用する。
+- この工程はアプリ内部の復元処理とテストに限定する。ファイル選択・保存先選択・実バックアップファイル操作・UI・package追加・Android/iOS設定変更は含めない。
 
 ## Step 14の目的と仕様の位置付け
 

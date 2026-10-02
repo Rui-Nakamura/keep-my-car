@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../backup/backup_import_result.dart';
 import '../domain/car_validation.dart';
 import '../domain/models/car.dart';
 import '../domain/models/plan_conditions.dart';
@@ -104,15 +105,22 @@ class PersistentPlanState extends ChangeNotifier {
     }
   }
 
-  Future<void> _persist(RestoredCarData candidate, VoidCallback commit) async {
-    if (_busy ||
+  Future<void> _persist(
+    RestoredCarData candidate,
+    VoidCallback commit, {
+    bool restoringBackup = false,
+    VoidCallback? prepare,
+  }) async {
+    if (_disposed ||
+        _busy ||
         phase == StartupPhase.loading ||
-        phase == StartupPhase.failure ||
+        (phase == StartupPhase.failure && !restoringBackup) ||
         phase == StartupPhase.uncertain) {
       throw const SaveRequestFailure();
     }
     _busy = true;
     try {
+      prepare?.call();
       final result = await repository.save(candidate);
       if (_disposed) throw const SaveRequestFailure();
       if (result is SaveFailure) {
@@ -127,6 +135,36 @@ class PersistentPlanState extends ChangeNotifier {
       _notify();
     } finally {
       _busy = false;
+    }
+  }
+
+  /// Accepts the fully validated 14-A2 result. Preparation is detached from the
+  /// formal state; after Safe Save only non-throwing field assignments remain.
+  Future<void> restoreFromBackup(BackupImportSuccess backup) async {
+    try {
+      final data = backup.data;
+      final RestoredCarData candidate = (
+        ownerBirthMonth: data.ownerBirthMonth,
+        car: data.car,
+        planConditions: data.planConditions,
+        plannedExpenses: List.unmodifiable(data.plannedExpenses),
+      );
+      late final PlanSession nextSession;
+      await _persist(
+        candidate,
+        () {
+          ownerBirthMonth = candidate.ownerBirthMonth;
+          car = candidate.car;
+          session = nextSession;
+          phase = StartupPhase.ready;
+        },
+        restoringBackup: true,
+        prepare: () => nextSession = _sessionFactory(candidate, referenceMonth),
+      );
+    } on SaveRequestFailure {
+      rethrow;
+    } catch (_) {
+      throw const SaveRequestFailure();
     }
   }
 
