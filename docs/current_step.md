@@ -14,7 +14,7 @@ Step 14-1〜14-4の正式仕様確定済み。`Step 14-1〜14-4` は仕様策定
 | 14-C1：ファイル保存・選択方式の調査 | `file_picker 13.1.0`・`flutter_file_dialog 3.3.3`を調査し、不採用と判断 |
 | 14-C2：Android最小Platform Channel検証 | 保存／読込みの安全契約を実装。Flutterテスト・Kotlin検証・Android build・Pixel 6a基本5項目PASS。実機上書きはProviderの別名保存により未実施。`"wt"`契約をコード・自動テスト・ソース検査で補強。最終read-onlyレビューPASS WITH COMMENTSを経て自前方式を正式採用 |
 | 14-C3：本番Export / Import接続 | 14-C2の正式採用方式を本番のバックアップ書き出し／復元処理へ接続。内部経路を実装し、既存Safe Saveを維持。本番UI / UXは14-Dで扱う |
-| 14-D：UI / UX | 14-Cに続く実装工程：Export / Importの導線・確認・結果表示 |
+| 14-D：UI / UX | Export / Importの導線・確認・結果表示を実装。自動検査・独立レビュー・手元スマートフォンUX受入完了。初回2択画面は実機未確認／既存自動テストで担保。詳細は本工程の最終実施結果・受入記録を参照 |
 
 14-A1＋14-A2＋14-BのClaude Cowork read-onlyレビュー結果はPASS WITH COMMENTS。Blocker・Major・コード上のMinorはなく、14-Cへの進行はYES。Step 14全体の完了判定は、後述の受入条件に従う。
 
@@ -34,6 +34,75 @@ Step 14-1〜14-4の正式仕様確定済み。`Step 14-1〜14-4` は仕様策定
 - 実読込み量は5 MiB以下のみ許可。OS選択画面にtimeoutはなく、URI取得後のI/Oだけ60秒。遅延Successは採用しない。Exportは `"wt"`、write・flush・close完了必須、fallbackなし。ImportはEOF・close完了必須、部分bytes不採用、metadata非依存。
 - probe専用経路を本番backup file名称へ整理し、releaseでもsave/readの2methodだけ登録する。package・権限・iOS実装・保存後再読込みは追加しない。
 - 本番ボタン配置・確認dialog・最終文言・初回／Failure UI・UX仕上げは14-Dへ残す。
+
+### Step 14-D：本番導線・確認UI・復元UX（承認済み範囲）
+
+- Homeの既存「設定」から計画設定を開き、「データ管理」へ進む。「データを書き出す」「バックアップから復元する」を説明付きで配置する。Homeにバックアップ専用の大きな操作を追加しない。計画設定6項目・Theme・package・Android/iOS設定は変更しない。
+- UIは操作開始・確認・結果表示・遷移だけを担当し、JSON生成・解析・validation・OSファイルI/O・Repositoryへの直接保存／削除は行わない。既存BackupTransfer・BackupFileGateway・PersistentPlanState・Safe Saveの責任分界を維持する。
+- 通常Importはファイル選択と完全validation成功後だけ「バックアップから復元しますか？」／「現在のデータは、選択したバックアップの内容に置き換わります。」を提示する。操作は「キャンセル」「バックアップから復元する」。通常確認では「元に戻せません」を表示しない。
+- Failureは復元・新規設定の2択と既存再読込を提供する。「保存データを読み込めませんでした」「バックアップがある場合は、バックアップから復元できます。バックアップがない場合は、新しく設定して使い始めることもできます。」を表示する。操作開始時にはFailureを正常化しない。Failureのみ、上の「バックアップから復元する」をFilledButtonの主操作、下の「新しく設定する」をOutlinedButtonの副操作とする。
+- Failure復元の確認本文は「現在読み込めない保存データは、選択したバックアップの内容に置き換わり、元に戻せません。」。確認の種類はcandidate作成時の状態を固定せず、restore直前の現在のstate.phaseを基準とする。確認中にphaseが変われば現在phaseに対応する確認をやり直す。通常失敗はFailure維持、rollback issueは既存uncertainへ移行する。
+- Failureからの新規設定は「新しく設定しますか？」／「現在読み込めない保存データは削除され、元に戻せません。」を表示し、「キャンセル」「削除して新しく設定する」を提供する。削除確定操作はThemeのerror／onError色のFilledButtonで不可逆操作を区別する。確定後だけState層からPersistence層の明示的破棄を呼ぶ。読めるcurrent／backupが見つかった場合や削除前の読込エラーでは破棄しない。current・backup・tempの削除と不存在確認が完了後だけNoDataへ移行して初期設定を開く。削除途中の失敗はuncertainとし、同じRepositoryを再loadして確認する。
+- 初回NoDataは「新しく設定する」「バックアップから復元する」の2択。新規は既存10項目初期設定へ進む。復元は通常置換確認を省略し、Safe Save成功後に初期設定を飛ばしてHomeへ進む。
+- 書出し成功は「データを書き出しました」、復元成功はHomeで「バックアップから復元しました」と短く表示する。`ScreenSuccessFeedback` により、復元成功後のHome遷移時に青／緑グラデーション輪郭通知を一度だけ表示する。正式State採用・Home遷移・成功通知はSafe Save成功後だけ。Exportは正式State不変。
+- ファイル保存／選択Cancel、復元確認Cancel、新規設定確認Cancelはメッセージなし・保存／State変更なし。処理中は重複操作と戻る操作を防ぐ。
+- 形式不一致は「このファイルはKeep My Carのバックアップではありません」、新しいversionは「このバックアップは新しいバージョンで作成されているため、このアプリでは読み込めません」。構造／内容不正・破損・5 MiB超過は「バックアップファイルを読み込めませんでした」へまとめる。timeout・接続・予期しないFuture例外は「処理を完了できませんでした。もう一度お試しください」へ落とし、クラッシュや成功扱いにしない。
+- 360 logical px・text scale 3.0・文字で意味が分かる操作を維持する。実機でのExport／Import・確認・Home遷移・通知・再起動保持等の受入結果と確認範囲は、以下の最終実施結果・受入記録に記載する。
+
+Export file I/O、restoreの通常save failure、timeout／platform error等は、MVPでは必要以上に細分化せず、既存の一般的なユーザー向けError表示へまとめる。restore／Failure新規設定でuncertainとなった場合は一般Error SnackBarを表示せず、既存の保存状態確認画面に任せる。
+
+本節の最終文言・Failure新規設定契約は、以下のStep 14一般仕様の表示例を具体化する。
+
+#### 復元成功時の輪郭通知
+
+- `ScreenSuccessFeedback` が復元成功後のHome遷移時に青／緑グラデーション輪郭通知を一度だけ表示する。
+- Safe Save成功・正式State採用 → Home遷移 → 「バックアップから復元しました」 → Home外周の短時間発光の順とする。最終仕様はduration約2.2秒、外周線4 logical px、blur 8、最大opacity 0.95、青／緑とする。画面内容を塗りつぶさず、輪郭を滑らかに減衰させる。点滅・繰り返し・音・振動は追加しない。
+- app UIだけが復元成功時に一時的な通知IDを進め、共通の小さな `ScreenSuccessFeedback` が変更を一度だけ消費する。初期値は既に消費された値として扱い、通常Home表示・再build・再訪問・再起動・Export・Cancel・失敗では再発光しない。通知イベントは保存しない。
+- 輪郭はIgnorePointer・ExcludeSemanticsのoverlayとし、既存レイアウトやタップ操作へ影響させない。「動きを減らす」指定ではフェードを行わず短時間の静止した輪郭を表示して消す。BackupTransfer・Codec・Persistenceへ演出責任を追加しない。package・Themeの変更は不要。
+
+#### 最終実施結果・受入記録
+
+Step 14-Dは、本節の承認済み範囲の実装・自動検査・Claude Cowork read-only独立レビュー・手元スマートフォンUX受入を完了した。以下は最終実装状態についての実施結果である。
+
+実装結果：
+
+- 通常利用時は「設定 → データ管理」から「データを書き出す」「バックアップから復元する」を提供する。Importの置換確認はvalidation成功後だけ提示する。
+- Failure状態は「バックアップから復元する」「新しく設定する」を提供し、新規設定時は保存データの破棄確認を必須とする。
+- 初回起動は「新しく設定する」「バックアップから復元する」の2択を提供する。
+- Success / Cancel / Errorの結果表示・取扱いを実装した。Successは成功メッセージ、Cancelはメッセージなし、Errorは本節のユーザー向け表示とする。uncertain時は一般Error SnackBarを出さず、既存の保存状態確認に任せる。
+- restore直前にphaseを再確認し、確認中のphase変更時は現在phaseに対応する確認をやり直す。
+- 復元成功時はHomeへ遷移し、「バックアップから復元しました」と `ScreenSuccessFeedback` による青／緑輪郭通知を一度だけ表示する。
+
+手元スマートフォンUX受入：
+
+- release APKで通常Export、Export Cancel、通常Import、Import Cancel、復元確認、復元成功、Home遷移、成功メッセージ、復元後データ、再起動後の復元データ保持を期待どおり確認した。
+- データ管理導線、ボタン優先順位、確認文、危険操作表示、青／緑輪郭通知を期待どおり確認した。
+- 初回起動の「新しく設定する」「バックアップから復元する」の2択画面は、アンインストール後も過去データが復元されたため、実機未確認／既存自動テストで担保とする。
+- 輪郭通知は最終仕様で手元スマートフォン再確認済み。以前より視認性が改善し、点灯を意識していれば認識可能と評価した。色・明るさ・点灯時間のさらなる調整はStep 14-Dでは行わず、後日のUI/UX改善で再検討する。この評価はStep 14-Dの要修正・未完了を意味しない。
+
+Remote Pixel 6a Technical Acceptance：途中保留（並行更新検出のため）。別Codexセッションによる想定外のpackage更新と検証対象APKの途中入替を検出した後、単一セッション運用へ切り替えた。端末ロックの可能性もあり、追加操作を行わず端末状態を保全した。アプリ不具合によるFAILではない。主要なExport / Import / UX確認は、上記の手元スマートフォンのrelease APKで実施済みである。
+
+自動検査結果：
+
+| 検査 | 最終実装状態の結果 |
+|---|---|
+| 関連テスト | 34件PASS |
+| 全Flutter test | 765件PASS |
+| flutter analyze | PASS |
+| Kotlin | 51件PASS |
+| Android source check | PASS |
+| release APK build | PASS |
+| git diff --check | PASS（CRLF→LF警告のみ） |
+
+Claude Cowork read-only独立レビュー結果はPASS WITH COMMENTS、Blockerなし。その後、Failure画面のボタン優先順位、削除確定ボタンの視認性、uncertain時のSnackBar、phase変更中の再確認テスト、`current_step.md`の整理を修正済みである。
+
+#### 後日のUI/UX改善候補
+
+- 青／緑輪郭通知の色・明るさ・点灯時間。
+- 初回画面の補足説明。
+- 初回設定画面から2択へ戻る導線。
+
+これらは後日のUI/UX改善で再検討可能な事項であり、Step 14-DのBlockerではない。
 
 ### Step 14-B：検証済みバックアップの安全な復元
 

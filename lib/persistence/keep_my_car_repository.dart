@@ -141,6 +141,42 @@ class KeepMyCarRepository {
     }
   }
 
+  /// Explicit Failure recovery. Partial deletion requires a reload.
+  Future<SaveResult> discardUnreadableData() async {
+    if (_busy) return SaveFailure(_busyIssue());
+    _busy = true;
+    var deletionStarted = false;
+    try {
+      for (final file in [DataFile.current, DataFile.backup]) {
+        final bytes = await _storage.read(file);
+        if (bytes == null) continue;
+        var readable = false;
+        try {
+          _decode(bytes);
+          readable = true;
+        } on FormatException {
+          // Invalid persistence data.
+        } on ArgumentError {
+          // Invalid domain data.
+        }
+        if (readable) throw StateError('Readable data must not be discarded');
+      }
+      for (final file in DataFile.values) {
+        deletionStarted = true;
+        await _storage.delete(file);
+        if (await _storage.read(file) != null) {
+          throw StateError('Deletion verification failed');
+        }
+      }
+      return const Saved();
+    } catch (error, stack) {
+      final issue = PersistenceIssue(PersistenceStage.discard, error, stack);
+      return SaveFailure(issue, rollbackIssues: deletionStarted ? [issue] : []);
+    } finally {
+      _busy = false;
+    }
+  }
+
   Future<void> _verify(DataFile file, List<int> expected) async {
     final bytes = await _storage.read(file);
     if (bytes == null) {

@@ -40,6 +40,9 @@ void main() {
       }
 
       await tester.pumpWidget(app());
+      await waitFor(find.text('新しく設定する'));
+      await tester.tap(find.text('新しく設定する'));
+      await tester.pumpAndSettle();
       await waitFor(find.byType(InitialSetupScreen));
       expect(find.byType(HomeScreen), findsNothing);
       for (final entry in {

@@ -12,6 +12,7 @@ enum PersistenceStage {
   promoteTemp,
   verifyCurrent,
   rollback,
+  discard,
 }
 
 /// Stage plus the original exception distinguish I/O, JSON/version and domain

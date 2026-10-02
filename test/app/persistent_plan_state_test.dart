@@ -32,6 +32,52 @@ void main() {
   });
   tearDown(() => state.dispose());
 
+  for (final phase in StartupPhase.values.where(
+    (p) => p != StartupPhase.failure,
+  )) {
+    test('discard is forbidden in ${phase.name}', () async {
+      state.phase = phase;
+      await expectLater(
+        state.discardFailureAndStartNew(),
+        throwsA(isA<SaveRequestFailure>()),
+      );
+      expect(repo.discards, 0);
+      expect(state.phase, phase);
+    });
+  }
+
+  for (final outcome in ['success', 'failure', 'uncertain']) {
+    test(
+      'Failure discard $outcome changes phase only after persistence',
+      () async {
+        repo.result = LoadFailure([saveFailure().issue]);
+        await state.load();
+        repo.discardResult = outcome == 'success'
+            ? const Saved()
+            : saveFailure(uncertain: outcome == 'uncertain');
+        if (outcome == 'success') {
+          await state.discardFailureAndStartNew();
+          expect(state.phase, StartupPhase.noData);
+          expect(state.car, isNull);
+          expect(state.session, isNull);
+        } else {
+          await expectLater(
+            state.discardFailureAndStartNew(),
+            throwsA(isA<SaveRequestFailure>()),
+          );
+          expect(
+            state.phase,
+            outcome == 'uncertain'
+                ? StartupPhase.uncertain
+                : StartupPhase.failure,
+          );
+        }
+        expect(repo.discards, 1);
+        expect(repo.saves, isEmpty);
+      },
+    );
+  }
+
   test(
     'load restores supplied owner, car, plan and expenses and calculates once',
     () async {

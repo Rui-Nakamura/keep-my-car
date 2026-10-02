@@ -33,8 +33,10 @@ class HomeScreen extends StatelessWidget {
     required this.onExpensesChanged,
     required this.onSaveExpense,
     required this.onDeleteExpense,
+    this.onDataManagement,
   });
   final PlanSession session;
+  final VoidCallback? onDataManagement;
   final Car car;
   final FutureOr<CarNameError?> Function(String) onSaveCarName;
   final FutureOr<Map<PlanField, PlanInputError>> Function(PlanConditions)
@@ -167,6 +169,7 @@ class HomeScreen extends StatelessWidget {
                     birthMonth: session.birthMonth,
                     referenceMonth: session.referenceMonth,
                     onApply: onApply,
+                    onDataManagement: onDataManagement,
                   ),
                 ),
                 child: const Text('設定'),

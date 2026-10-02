@@ -18,8 +18,10 @@ class PlanSettingsScreen extends StatefulWidget {
     required this.birthMonth,
     required this.referenceMonth,
     required this.onApply,
+    this.onDataManagement,
   });
   final PlanConditions conditions;
+  final VoidCallback? onDataManagement;
   final YearMonth birthMonth;
   final YearMonth referenceMonth;
   final FutureOr<Map<PlanField, PlanInputError>> Function(PlanConditions)
@@ -315,6 +317,13 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
                 onPressed: _saving ? null : _apply,
                 child: Text(_saving ? '保存中…' : 'この試算に反映'),
               ),
+              if (widget.onDataManagement != null) ...[
+                const SizedBox(height: AppSpacing.xl),
+                OutlinedButton(
+                  onPressed: _saving ? null : widget.onDataManagement,
+                  child: const Text('データ管理'),
+                ),
+              ],
             ],
           ),
         ),

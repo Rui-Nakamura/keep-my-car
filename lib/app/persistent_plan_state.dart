@@ -197,6 +197,36 @@ class PersistentPlanState extends ChangeNotifier {
     });
   }
 
+  Future<void> discardFailureAndStartNew() async {
+    if (_disposed || _busy || phase != StartupPhase.failure) {
+      throw const SaveRequestFailure();
+    }
+    _busy = true;
+    try {
+      final result = await repository.discardUnreadableData();
+      if (_disposed) throw const SaveRequestFailure();
+      if (result is SaveFailure) {
+        if (result.rollbackIssues.isNotEmpty) {
+          phase = StartupPhase.uncertain;
+          _notify();
+          throw const SaveRequestFailure(uncertain: true);
+        }
+        throw const SaveRequestFailure();
+      }
+      car = null;
+      session = null;
+      ownerBirthMonth = null;
+      phase = StartupPhase.noData;
+      _notify();
+    } on SaveRequestFailure {
+      rethrow;
+    } catch (_) {
+      throw const SaveRequestFailure();
+    } finally {
+      _busy = false;
+    }
+  }
+
   FutureOr<CarNameError?> saveCarName(String input) {
     final result = validateCarName(input);
     if (result.error != null) return result.error;

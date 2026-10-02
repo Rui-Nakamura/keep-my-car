@@ -23,6 +23,15 @@ class TestRepository extends KeepMyCarRepository {
   Future<LoadResult> Function()? onLoad;
   Future<SaveResult> Function(RestoredCarData)? onSave;
   int loads = 0;
+  int discards = 0;
+  SaveResult discardResult = const Saved();
+  @override
+  Future<SaveResult> discardUnreadableData() async {
+    discards++;
+    if (discardResult is Saved) result = const NoData();
+    return discardResult;
+  }
+
   final saves = <RestoredCarData>[];
   @override
   Future<LoadResult> load() async {

@@ -6,7 +6,7 @@ import 'backup_v1_codec.dart';
 
 enum BackupTransferStatus { success, cancelled, candidate, error }
 
-enum BackupTransferError { unavailable, encoding, restore }
+enum BackupTransferError { unavailable, encoding, restore, unexpected }
 
 /// Candidate means validation completed, never that data was saved or adopted.
 class BackupTransferResult {
@@ -83,6 +83,11 @@ class BackupTransfer {
           importIssue: issue,
         ),
       };
+    } catch (_) {
+      return const BackupTransferResult._(
+        BackupTransferStatus.error,
+        error: BackupTransferError.unexpected,
+      );
     } finally {
       _busy = false;
     }
@@ -101,6 +106,11 @@ class BackupTransfer {
         BackupTransferStatus.error,
         error: BackupTransferError.restore,
         saveFailure: failure,
+      );
+    } catch (_) {
+      return const BackupTransferResult._(
+        BackupTransferStatus.error,
+        error: BackupTransferError.unexpected,
       );
     } finally {
       _busy = false;

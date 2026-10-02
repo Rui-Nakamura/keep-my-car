@@ -84,6 +84,26 @@ void main() {
     );
   }
 
+  test(
+    'recovered export preserves phase and uses formal recovered input',
+    () async {
+      state.dispose();
+      await start(Recovered(restored));
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        final decoded = codec.decode(
+          call.arguments['bytes'] as Uint8List,
+        ) as BackupImportSuccess;
+        expect(decoded.data.planConditions, restored.planConditions);
+        return {'status': 'success'};
+      });
+      final session = state.session;
+      expect((await transfer.export()).status, BackupTransferStatus.success);
+      expect(state.phase, StartupPhase.recovered);
+      expect(state.session, same(session));
+      expect(repo.saves, isEmpty);
+    },
+  );
+
   for (final issue in BackupImportIssue.values) {
     test('read rejects ${issue.name} before candidate or save', () async {
       final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;

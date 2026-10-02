@@ -109,6 +109,64 @@ void main() {
   });
 
   test(
+    'confirmed discard removes corrupt current, backup and stale temp',
+    () async {
+      for (final role in DataFile.values) {
+        await put(role, utf8.encode('broken'));
+      }
+      expect(await repository.load(), isA<LoadFailure>());
+      expect(await repository.discardUnreadableData(), isA<Saved>());
+      for (final role in DataFile.values) {
+        expect(await io.read(role), isNull);
+      }
+      expect(await repository.load(), isA<NoData>());
+      expect(await repository.save(snapshot()), isA<Saved>());
+      expect(await repository.load(), isA<Loaded>());
+    },
+  );
+
+  for (final role in [DataFile.current, DataFile.backup]) {
+    test(
+      'discard refuses readable ${role.name} without deleting files',
+      () async {
+        await put(role, bytes(snapshot()));
+        final result = await repository.discardUnreadableData() as SaveFailure;
+        expect(result.rollbackIssues, isEmpty);
+        expect(await io.read(role), bytes(snapshot()));
+        expect(storage.events.where((e) => e.startsWith('delete')), isEmpty);
+      },
+    );
+  }
+
+  test('discard read failure leaves all files untouched', () async {
+    await put(DataFile.current, utf8.encode('broken'));
+    storage.before = (op) {
+      if (op == 'read.current') throw StateError('read error');
+    };
+    final result = await repository.discardUnreadableData() as SaveFailure;
+    expect(result.rollbackIssues, isEmpty);
+    expect(await io.read(DataFile.current), utf8.encode('broken'));
+    expect(storage.events.where((e) => e.startsWith('delete')), isEmpty);
+  });
+
+  test(
+    'partial discard requires reload and does not claim preservation',
+    () async {
+      for (final role in DataFile.values) {
+        await put(role, utf8.encode('broken'));
+      }
+      storage.before = (op) {
+        if (op == 'delete.backup') throw StateError('delete error');
+      };
+      final result = await repository.discardUnreadableData() as SaveFailure;
+      expect(result.rollbackIssues, isNotEmpty);
+      expect(await io.read(DataFile.current), isNull);
+      expect(await io.read(DataFile.backup), utf8.encode('broken'));
+      expect(await repository.load(), isA<LoadFailure>());
+    },
+  );
+
+  test(
     'ownerBirthMonth is retained in temp, current, backup and recovery',
     () async {
       final a = snapshot('A', const YearMonth(1970, 4));

@@ -16,6 +16,9 @@ Future<void> boot(WidgetTester tester, TestRepository repo) async {
     KeepMyCarApp(repository: repo, now: () => DateTime(2026, 9, 30)),
   );
   await tester.pumpAndSettle();
+  if (repo.result is NoData) {
+    await tapVisible(tester, find.text('新しく設定する'));
+  }
 }
 
 Future<void> fillSetup(WidgetTester tester) async {
@@ -158,6 +161,8 @@ void main() {
     expect(find.text('メルセデスAMG E53'), findsNothing);
     pending.complete(const NoData());
     await tester.pumpAndSettle();
+    expect(find.text('バックアップから復元する'), findsOneWidget);
+    await tapVisible(tester, find.text('新しく設定する'));
     expect(find.byType(InitialSetupScreen), findsOneWidget);
     expect(
       tester
@@ -276,9 +281,11 @@ void main() {
     final repo = TestRepository(LoadFailure([saveFailure().issue]));
     await boot(tester, repo);
     expect(find.byType(HomeScreen), findsNothing);
-    expect(find.text('保存されているデータは削除していません。'), findsOneWidget);
+    expect(find.text('バックアップから復元する'), findsOneWidget);
     repo.result = const NoData();
     await tapVisible(tester, find.text('もう一度読み込む'));
+    expect(find.text('新しく設定する'), findsOneWidget);
+    await tapVisible(tester, find.text('新しく設定する'));
     expect(find.byType(InitialSetupScreen), findsOneWidget);
     expect(repo.loads, 2);
   });
@@ -314,6 +321,8 @@ void main() {
           expect(find.text('データを復元しました'), findsOneWidget);
         }
         if (result is NoData) {
+          expect(find.text('新しく設定する'), findsOneWidget);
+          await tapVisible(tester, find.text('新しく設定する'));
           expect(find.byType(InitialSetupScreen), findsOneWidget);
         }
         if (result is LoadFailure) {
