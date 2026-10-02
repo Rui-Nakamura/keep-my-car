@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:keep_my_car/platform_probe/backup_file_gateway.dart';
+import 'package:keep_my_car/backup_file/backup_file_gateway.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('keep_my_car/backup_file_probe');
+  const channel = MethodChannel('keep_my_car/backup_file');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   late BackupFileGateway gateway;

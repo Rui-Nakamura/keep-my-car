@@ -5,9 +5,9 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
-// Probe limits, not permanent product limits.
-internal const val PROBE_MAX_READ_BYTES = 5 * 1024 * 1024
-internal const val PROBE_IO_TIMEOUT_MS = 60_000L
+// Production limits: actual read bytes and URI-selected I/O only.
+internal const val BACKUP_MAX_READ_BYTES = 5 * 1024 * 1024
+internal const val BACKUP_IO_TIMEOUT_MS = 60_000L
 
 internal data class FileOutcome(val status: String, val code: String? = null, val bytes: ByteArray? = null) {
     fun wire(): Map<String, Any> = buildMap {
@@ -55,7 +55,7 @@ internal object BackupStreamIo {
                 val count = it.read(buffer)
                 if (count < 0) break
                 if (count == 0) continue
-                if (count > PROBE_MAX_READ_BYTES - output.size()) throw FileIoFailure("tooLarge")
+                if (count > BACKUP_MAX_READ_BYTES - output.size()) throw FileIoFailure("tooLarge")
                 output.write(buffer, 0, count)
             }
         }
@@ -90,7 +90,7 @@ internal class BackupFileOperation(reply: (FileOutcome) -> Unit) {
     fun beginIo(nowMs: Long = 0): Boolean {
         if (transferring || replied || detached) return false
         transferring = true
-        deadlineMs = nowMs + PROBE_IO_TIMEOUT_MS
+        deadlineMs = nowMs + BACKUP_IO_TIMEOUT_MS
         return true
     }
 
@@ -127,7 +127,7 @@ internal class BackupFileOperation(reply: (FileOutcome) -> Unit) {
 }
 
 // Main-thread-only, shared by old/new Activity instances. No Activity or messenger references.
-internal object BackupProbeGate {
+internal object BackupFileGate {
     private const val FIRST_REQUEST = 0x6000
     private const val LAST_REQUEST = 0x7fff
     private var nextRequest = FIRST_REQUEST

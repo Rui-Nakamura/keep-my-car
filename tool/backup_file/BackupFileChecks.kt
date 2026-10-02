@@ -74,14 +74,14 @@ fun main() {
     scenario("multiple selection rejected") { expectError(selectionFailure(-1, true, true, true)!!, "invalidResponse") }
     scenario("non-content URI rejected") { expectError(selectionFailure(-1, true, false, false)!!, "invalidResponse") }
     scenario("valid selection is not I/O success yet") { check(selectionFailure(-1, true, false, true) == null) }
-    for (elapsed in listOf(PROBE_IO_TIMEOUT_MS - 1, PROBE_IO_TIMEOUT_MS, PROBE_IO_TIMEOUT_MS + 1)) {
+    for (elapsed in listOf(BACKUP_IO_TIMEOUT_MS - 1, BACKUP_IO_TIMEOUT_MS, BACKUP_IO_TIMEOUT_MS + 1)) {
         scenario("I/O deadline boundary $elapsed") {
             val results = mutableListOf<FileOutcome>()
             val operation = BackupFileOperation { results += it }
             operation.beginIo(100)
             operation.finishIo(FileOutcome("success"), 100 + elapsed)
             check(results.size == 1)
-            if (elapsed < PROBE_IO_TIMEOUT_MS) check(results.single().status == "success")
+            if (elapsed < BACKUP_IO_TIMEOUT_MS) check(results.single().status == "success")
             else expectError(results.single(), "timeout")
         }
     }
@@ -175,7 +175,7 @@ fun main() {
             expectError(BackupStreamIo.read({ throw exception }, active()))
         }
     }
-    for (size in listOf(PROBE_MAX_READ_BYTES - 1, PROBE_MAX_READ_BYTES, PROBE_MAX_READ_BYTES + 1)) {
+    for (size in listOf(BACKUP_MAX_READ_BYTES - 1, BACKUP_MAX_READ_BYTES, BACKUP_MAX_READ_BYTES + 1)) {
         scenario("actual read size $size") {
             var closed = false
             val stream = object : ByteArrayInputStream(ByteArray(size)) {
@@ -183,40 +183,40 @@ fun main() {
             }
             val outcome = BackupStreamIo.read({ stream }, active())
             check(closed)
-            if (size > PROBE_MAX_READ_BYTES) expectError(outcome, "tooLarge")
+            if (size > BACKUP_MAX_READ_BYTES) expectError(outcome, "tooLarge")
             else check(outcome.status == "success" && outcome.bytes!!.size == size)
         }
     }
     scenario("timeout keeps gate busy until actual worker exit") {
         val results = mutableListOf<FileOutcome>()
         val operation = BackupFileOperation { results += it }
-        check(BackupProbeGate.acquire(operation) != null)
+        check(BackupFileGate.acquire(operation) != null)
         check(operation.beginIo())
         operation.timeout()
-        check(BackupProbeGate.busy)
-        check(BackupProbeGate.acquire(BackupFileOperation {}) == null)
+        check(BackupFileGate.busy)
+        check(BackupFileGate.acquire(BackupFileOperation {}) == null)
         operation.complete(FileOutcome("success"))
         check(results.size == 1 && results.single().code == "timeout")
-        BackupProbeGate.release(operation)
-        check(!BackupProbeGate.busy)
+        BackupFileGate.release(operation)
+        check(!BackupFileGate.busy)
     }
     scenario("selection busy rejects both further save/read operations") {
         val selecting = BackupFileOperation {}
-        check(BackupProbeGate.acquire(selecting) != null)
-        repeat(2) { check(BackupProbeGate.acquire(BackupFileOperation {}) == null) }
+        check(BackupFileGate.acquire(selecting) != null)
+        repeat(2) { check(BackupFileGate.acquire(BackupFileOperation {}) == null) }
         selecting.detach()
-        BackupProbeGate.release(selecting)
-        check(!BackupProbeGate.busy)
+        BackupFileGate.release(selecting)
+        check(!BackupFileGate.busy)
     }
     scenario("detached I/O keeps new Activity busy until worker exits") {
         val old = BackupFileOperation {}
-        check(BackupProbeGate.acquire(old) != null)
+        check(BackupFileGate.acquire(old) != null)
         old.beginIo()
         old.detach()
-        check(BackupProbeGate.acquire(BackupFileOperation {}) == null)
+        check(BackupFileGate.acquire(BackupFileOperation {}) == null)
         old.finishIo(FileOutcome("success"), 100)
-        BackupProbeGate.release(old)
-        check(!BackupProbeGate.busy)
+        BackupFileGate.release(old)
+        check(!BackupFileGate.busy)
     }
     scenario("duplicate OS result cannot start second I/O") {
         val operation = BackupFileOperation {}
@@ -258,21 +258,21 @@ fun main() {
     }
     scenario("old cleanup cannot unlock a new owner") {
         val old = BackupFileOperation {}
-        val oldCode = BackupProbeGate.acquire(old)!!
-        BackupProbeGate.release(old)
+        val oldCode = BackupFileGate.acquire(old)!!
+        BackupFileGate.release(old)
         val newer = BackupFileOperation {}
-        val newCode = BackupProbeGate.acquire(newer)!!
+        val newCode = BackupFileGate.acquire(newer)!!
         check(oldCode != newCode)
-        BackupProbeGate.release(old)
-        check(BackupProbeGate.busy)
-        BackupProbeGate.release(newer)
+        BackupFileGate.release(old)
+        check(BackupFileGate.busy)
+        BackupFileGate.release(newer)
     }
     scenario("restored request watermark never moves backward") {
-        val saved = BackupProbeGate.watermark()
-        BackupProbeGate.restore(saved - 1)
-        check(BackupProbeGate.watermark() == saved)
-        BackupProbeGate.restore(saved + 3)
-        check(BackupProbeGate.watermark() == saved + 3)
+        val saved = BackupFileGate.watermark()
+        BackupFileGate.restore(saved - 1)
+        check(BackupFileGate.watermark() == saved)
+        BackupFileGate.restore(saved + 3)
+        check(BackupFileGate.watermark() == saved + 3)
     }
     scenario("abandoned I/O never opens provider") {
         val abandoned = AtomicBoolean(true)
@@ -286,5 +286,5 @@ fun main() {
         operation.complete(FileOutcome("success"))
         check(count == 1)
     }
-    println("$checks Kotlin probe checks passed")
+    println("$checks Kotlin backup file checks passed")
 }

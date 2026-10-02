@@ -13,7 +13,7 @@ Step 14-1〜14-4の正式仕様確定済み。`Step 14-1〜14-4` は仕様策定
 | 14-B：安全な復元処理 | 検証済みcandidateを既存Safe Saveへ接続。保存成功前は正式State不変、成功後のみ一括採用。NoData / Failure / Recovered / readyからの安全な復元、rollback issue時の既存保存状態不明処理、既存処理によるPlanSession / nextId再構築を実装。実装・検査・独立レビュー完了 |
 | 14-C1：ファイル保存・選択方式の調査 | `file_picker 13.1.0`・`flutter_file_dialog 3.3.3`を調査し、不採用と判断 |
 | 14-C2：Android最小Platform Channel検証 | 保存／読込みの安全契約を実装。Flutterテスト・Kotlin検証・Android build・Pixel 6a基本5項目PASS。実機上書きはProviderの別名保存により未実施。`"wt"`契約をコード・自動テスト・ソース検査で補強。最終read-onlyレビューPASS WITH COMMENTSを経て自前方式を正式採用 |
-| 14-C：本番接続 | 14-C2の正式採用方式を本番のバックアップ書き出し／復元処理へ接続する後続工程 |
+| 14-C3：本番Export / Import接続 | 14-C2の正式採用方式を本番のバックアップ書き出し／復元処理へ接続。内部経路を実装し、既存Safe Saveを維持。本番UI / UXは14-Dで扱う |
 | 14-D：UI / UX | 14-Cに続く実装工程：Export / Importの導線・確認・結果表示 |
 
 14-A1＋14-A2＋14-BのClaude Cowork read-onlyレビュー結果はPASS WITH COMMENTS。Blocker・Major・コード上のMinorはなく、14-Cへの進行はYES。Step 14全体の完了判定は、後述の受入条件に従う。
@@ -26,6 +26,14 @@ Step 14-1〜14-4の正式仕様確定済み。`Step 14-1〜14-4` は仕様策定
 - Pixel 6aの検証用APKで保存・保存Cancel・読込み・読込みCancel・bytes完全一致の基本5項目PASS。既存の大きい同名ファイルへの上書きは、Providerが既存URIを返さず`(1)`付き別ファイルを作成したため未実施であり、アプリ側の失敗ではない。
 - アプリは切り詰めmode `"wt"`を要求し、拒否された場合はerrorとする。コード・偽出力先の自動テスト・Android呼出しのソース検査で契約を補強済みだが、`"wt"`を受け付けながら切り詰めない等、仕様に反するProviderの動作までは保証しない。
 - `MainActivity`は`FlutterActivity`を維持し、新しいActivityは追加していない。Channel登録・結果転送・cleanupとrequest watermarkの保存／復元を追加し、実I/Oは専用classへ分離している。
+
+### Step 14-C3：本番Export / Import接続（承認済み範囲）
+
+- 本番窓口は正式State → 既存Backup v1 Codec → UTF-8 bytes → 1ファイル保存、および1ファイル読込み → 完全validation → candidate → 既存 `PersistentPlanState.restoreFromBackup` / Safe Saveを接続する。保存成功後だけ正式Stateを採用する。
+- candidate取得と復元を分離し、通常／Failureの必要な確認をvalidation成功後に挟める構造にする。NoData・Failureを復元前に正常化しない。rollback issueは既存uncertain契約を維持する。
+- 実読込み量は5 MiB以下のみ許可。OS選択画面にtimeoutはなく、URI取得後のI/Oだけ60秒。遅延Successは採用しない。Exportは `"wt"`、write・flush・close完了必須、fallbackなし。ImportはEOF・close完了必須、部分bytes不採用、metadata非依存。
+- probe専用経路を本番backup file名称へ整理し、releaseでもsave/readの2methodだけ登録する。package・権限・iOS実装・保存後再読込みは追加しない。
+- 本番ボタン配置・確認dialog・最終文言・初回／Failure UI・UX仕上げは14-Dへ残す。
 
 ### Step 14-B：検証済みバックアップの安全な復元
 

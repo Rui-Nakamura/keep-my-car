@@ -15,17 +15,17 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
     private var activity: Activity? = activity
     private val resolver = activity.applicationContext.contentResolver
     companion object {
-        private const val CHANNEL = "keep_my_car/backup_file_probe"
-        fun requestWatermark(): Int = BackupProbeGate.watermark()
+        private const val CHANNEL = "keep_my_car/backup_file"
+        fun requestWatermark(): Int = BackupFileGate.watermark()
         fun restoreWatermark(value: Int) {
-            BackupProbeGate.restore(value)
+            BackupFileGate.restore(value)
         }
     }
 
     private val channel = MethodChannel(messenger, CHANNEL)
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "backup-file-probe").apply { isDaemon = true }
+        Thread(task, "backup-file-io").apply { isDaemon = true }
     }
     private var pending: BackupFileOperation? = null
     private var requestCode: Int? = null
@@ -47,7 +47,7 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
             result.success(fileError("interrupted").wire())
             return
         }
-        if (BackupProbeGate.busy) {
+        if (BackupFileGate.busy) {
             result.success(fileError("busy").wire())
             return
         }
@@ -63,7 +63,7 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
         }
         // Never recycle a request code in this process (or across saved Activity state).
         val operation = BackupFileOperation { result.success(it.wire()) }
-        val allocatedRequest = BackupProbeGate.acquire(operation)
+        val allocatedRequest = BackupFileGate.acquire(operation)
         if (allocatedRequest == null) {
             result.success(fileError("platformFailure").wire())
             return
@@ -117,7 +117,7 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
         if (!operation.beginIo(SystemClock.elapsedRealtime())) return
         val timeout = Runnable { operation.timeout() }
         timeoutTask = timeout
-        main.postDelayed(timeout, PROBE_IO_TIMEOUT_MS)
+        main.postDelayed(timeout, BACKUP_IO_TIMEOUT_MS)
         val bytes = saveBytes
         saveBytes = null
         // Keep only the application resolver in the worker, never the Activity.
@@ -143,7 +143,7 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
     }
 
     private fun release(operation: BackupFileOperation) {
-        BackupProbeGate.release(operation)
+        BackupFileGate.release(operation)
         if (pending === operation) {
             pending = null
             requestCode = null

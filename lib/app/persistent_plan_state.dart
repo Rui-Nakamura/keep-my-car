@@ -40,6 +40,16 @@ class PersistentPlanState extends ChangeNotifier {
   bool _busy = false;
   bool _disposed = false;
 
+  bool get canRestoreBackup =>
+      !_disposed &&
+      !_busy &&
+      phase != StartupPhase.loading &&
+      phase != StartupPhase.uncertain;
+
+  bool get canExportBackup =>
+      canRestoreBackup &&
+      (phase == StartupPhase.ready || phase == StartupPhase.recovered);
+
   static PlanSession _newSession(RestoredCarData data, YearMonth reference) =>
       PlanSession(
         conditions: data.planConditions,

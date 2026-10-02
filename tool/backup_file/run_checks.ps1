@@ -21,11 +21,11 @@ $compilerJars = @(
     (Find-Jar 'org.jetbrains.kotlinx' 'kotlinx-coroutines-core-jvm' '1.8.0'),
     $annotations
 )
-$outputDirectory = Join-Path $repoRoot 'build\backup_file_probe_checks'
+$outputDirectory = Join-Path $repoRoot 'build\backup_file_checks'
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 $outputJar = Join-Path $outputDirectory 'checks.jar'
 $source = Join-Path $repoRoot 'android\app\src\main\kotlin\dev\keepmycar\prototype\keep_my_car\BackupFileOperation.kt'
-$checks = Join-Path $PSScriptRoot 'BackupFileProbeChecks.kt'
+$checks = Join-Path $PSScriptRoot 'BackupFileChecks.kt'
 # Deliberately guard the current Android wiring without adding a framework/interface.
 # A refactor must update and review this guard; mode-less or w must fail closed.
 $channelSource = Get-Content -LiteralPath (Join-Path (Split-Path $source) 'BackupFileChannel.kt') -Raw
@@ -35,7 +35,13 @@ if ($outputCalls.Count -ne 1 -or $truncatingSave.Count -ne 1) {
     throw 'Android save must call BackupStreamIo.save with exactly one explicit openOutputStream(uri, "wt"); review wiring changes.'
 }
 Write-Output 'PASS Android source guard: explicit wt save wiring, no alternate output open'
+$activitySource = Get-Content -LiteralPath (Join-Path (Split-Path $source) 'MainActivity.kt') -Raw
+if ($activitySource -match 'FLAG_DEBUGGABLE|BuildConfig.DEBUG' -or
+    $activitySource -notmatch 'backupFileChannel = BackupFileChannel\(this, flutterEngine.dartExecutor.binaryMessenger\)') {
+    throw 'Production backup channel must register for release as well as debug; review lifecycle wiring.'
+}
+Write-Output 'PASS Android source guard: production channel registration without debug restriction'
 & $JavaExe -cp ($compilerJars -join ';') org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -no-reflect -classpath "$stdlib;$annotations" -jvm-target 17 -d $outputJar $source $checks
-if ($LASTEXITCODE -ne 0) { throw 'Kotlin probe compilation failed' }
-& $JavaExe -cp "$outputJar;$stdlib" dev.keepmycar.prototype.keep_my_car.BackupFileProbeChecksKt
-if ($LASTEXITCODE -ne 0) { throw 'Kotlin probe checks failed' }
+if ($LASTEXITCODE -ne 0) { throw 'Kotlin backup file compilation failed' }
+& $JavaExe -cp "$outputJar;$stdlib" dev.keepmycar.prototype.keep_my_car.BackupFileChecksKt
+if ($LASTEXITCODE -ne 0) { throw 'Kotlin backup file checks failed' }

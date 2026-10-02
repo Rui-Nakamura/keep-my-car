@@ -26,11 +26,10 @@ class BackupFileResult {
   final BackupFileError? error;
 }
 
-/// Probe-only transport. Does not decode backups or mutate application state.
+/// Single-file transport. Does not decode backups or mutate application state.
 class BackupFileGateway {
-  final MethodChannel _channel = const MethodChannel(
-    'keep_my_car/backup_file_probe',
-  );
+  static const maxReadBytes = 5 * 1024 * 1024;
+  final MethodChannel _channel = const MethodChannel('keep_my_car/backup_file');
 
   Future<BackupFileResult> save({
     required String filename,
@@ -59,6 +58,9 @@ class BackupFileGateway {
           if (method == 'read') {
             final bytes = response['bytes'];
             if (bytes is! Uint8List) return _invalid();
+            if (bytes.length > maxReadBytes) {
+              return const BackupFileResult.failure(BackupFileError.tooLarge);
+            }
             return BackupFileResult._(
               BackupFileStatus.success,
               bytes: Uint8List.fromList(bytes),
