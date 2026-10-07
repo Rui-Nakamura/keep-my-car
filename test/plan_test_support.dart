@@ -45,18 +45,20 @@ class CalculationCalls {
   int timeline = 0;
   int reserve = 0;
   List<TimelineYearData> calculateTimeline({
-    required int currentYear,
-    required int currentOwnerAge,
-    required int currentCarAge,
+    required YearMonth referenceMonth,
+    required YearMonth birthMonth,
+    required YearMonth firstRegistrationMonth,
+    required YearMonth ownershipTargetMonth,
     required int currentMileageKm,
     required int annualMileageKm,
     required List<PlannedExpense> plannedExpenses,
   }) {
     timeline++;
     return calculateFutureTimeline(
-      currentYear: currentYear,
-      currentOwnerAge: currentOwnerAge,
-      currentCarAge: currentCarAge,
+      referenceMonth: referenceMonth,
+      birthMonth: birthMonth,
+      firstRegistrationMonth: firstRegistrationMonth,
+      ownershipTargetMonth: ownershipTargetMonth,
       currentMileageKm: currentMileageKm,
       annualMileageKm: annualMileageKm,
       plannedExpenses: plannedExpenses,

@@ -858,14 +858,12 @@ void main() {
 
       List<Object> timeline(RestoredCarData data) =>
           calculateFutureTimeline(
-                currentYear: goldenSample.referenceMonth.year,
-                currentOwnerAge: completedYears(
+                referenceMonth: goldenSample.referenceMonth,
+                birthMonth: data.ownerBirthMonth,
+                firstRegistrationMonth: data.car.firstRegistrationMonth,
+                ownershipTargetMonth: reserveMonth(
                   data.ownerBirthMonth,
-                  goldenSample.referenceMonth,
-                ),
-                currentCarAge: completedYears(
-                  data.car.firstRegistrationMonth,
-                  goldenSample.referenceMonth,
+                  data.planConditions.ownershipTargetAge,
                 ),
                 currentMileageKm: data.planConditions.currentMileageKm,
                 annualMileageKm: data.planConditions.annualMileageKm,
@@ -890,7 +888,7 @@ void main() {
         plannedExpenses: goldenSample.plannedExpenses,
       ));
       expect(timeline(restored), before);
-      expect(before, hasLength(10));
+      expect(before, hasLength(15));
     },
   );
 

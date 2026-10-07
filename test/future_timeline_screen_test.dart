@@ -51,9 +51,10 @@ Future<void> pumpTimeline(
       ),
       home: FutureTimelineScreen(
         years: calculateFutureTimeline(
-          currentYear: year,
-          currentOwnerAge: age,
-          currentCarAge: 8,
+          referenceMonth: YearMonth(year, 1),
+          birthMonth: YearMonth(year - age, 1),
+          firstRegistrationMonth: YearMonth(year - 8, 1),
+          ownershipTargetMonth: YearMonth(year + 9, 12),
           currentMileageKm: 45000,
           annualMileageKm: 4000,
           plannedExpenses: expenses,
@@ -81,7 +82,7 @@ void expectSafeLayout(WidgetTester tester) {
 
 void main() {
   testWidgets(
-    'ten empty years keep all yearly values and only first current marker',
+    'empty years through the supplied target keep all yearly values and only first current marker',
     (tester) async {
       await pumpTimeline(tester, []);
       const expected = [
@@ -94,7 +95,7 @@ void main() {
         (2032, '62歳', '車齢14年', '約69,000km'),
         (2033, '63歳', '車齢15年', '約73,000km'),
         (2034, '64歳', '車齢16年', '約77,000km'),
-        (2035, '65歳', '車齢17年', '約81,000km'),
+        (2035, '65歳', '車齢17年', '約84,666km'),
       ];
       double previousY = -1;
       for (final row in expected) {
@@ -206,24 +207,25 @@ void main() {
     },
   );
 
-  testWidgets('fixed year boundaries include January and final December only', (
-    tester,
-  ) async {
-    await pumpTimeline(tester, [
-      expense('範囲後', 2036, 1, 900000),
-      expense('最後', 2035, 12, 200),
-      expense('範囲前', 2025, 12, 800000),
-      expense('最初', 2026, 1, 100),
-    ]);
-    expect(find.text('範囲前'), findsNothing);
-    expect(find.text('範囲後'), findsNothing);
-    expect(inYear(2026, '最初'), findsOneWidget);
-    expect(inYear(2026, '2026年1月'), findsOneWidget);
-    expect(inYear(2026, '年間予定費 100円'), findsOneWidget);
-    expect(inYear(2035, '最後'), findsOneWidget);
-    expect(inYear(2035, '2035年12月'), findsOneWidget);
-    expect(inYear(2035, '年間予定費 200円'), findsOneWidget);
-  });
+  testWidgets(
+    'target year boundaries include January and final December only',
+    (tester) async {
+      await pumpTimeline(tester, [
+        expense('範囲後', 2036, 1, 900000),
+        expense('最後', 2035, 12, 200),
+        expense('範囲前', 2025, 12, 800000),
+        expense('最初', 2026, 1, 100),
+      ]);
+      expect(find.text('範囲前'), findsNothing);
+      expect(find.text('範囲後'), findsNothing);
+      expect(inYear(2026, '最初'), findsOneWidget);
+      expect(inYear(2026, '2026年1月'), findsOneWidget);
+      expect(inYear(2026, '年間予定費 100円'), findsOneWidget);
+      expect(inYear(2035, '最後'), findsOneWidget);
+      expect(inYear(2035, '2035年12月'), findsOneWidget);
+      expect(inYear(2035, '年間予定費 200円'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'supplied base year is used instead of a fixed year or device date',
@@ -245,7 +247,7 @@ void main() {
         '2035年',
         '65歳',
         '車齢17年',
-        '約81,000km',
+        '約84,666km',
         name,
         '2035年12月',
         '3,000,000円',

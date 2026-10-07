@@ -5,34 +5,42 @@ import 'package:keep_my_car/domain/repair_reserve_calculator.dart';
 import '../plan_test_support.dart';
 
 void main() {
-  test('initial Golden Sample preserves both calculations', () {
-    final plan = session();
-    final result = plan.reserveResult as RepairReserveSuccess;
-    expect(
-      (
-        result.plannedExpensesOnlyMonthlyYen,
-        result.repairIncludedMonthlyYen,
-        result.additionalMonthlyYen,
-      ),
-      (11341, 29808, 18467),
-    );
-    expect(plan.timeline.map((year) => year.mileageKm), [
-      45000,
-      49000,
-      53000,
-      57000,
-      61000,
-      65000,
-      69000,
-      73000,
-      77000,
-      81000,
-    ]);
-    expect(plan.timeline.first.year, 2026);
-    expect(plan.timeline.last.year, 2035);
-    expect(plan.timelinePending, isFalse);
-    expect(plan.reservePending, isFalse);
-  });
+  test(
+    'initial Golden Sample extends timeline and preserves reserve calculation',
+    () {
+      final plan = session();
+      final result = plan.reserveResult as RepairReserveSuccess;
+      expect(
+        (
+          result.plannedExpensesOnlyMonthlyYen,
+          result.repairIncludedMonthlyYen,
+          result.additionalMonthlyYen,
+        ),
+        (11341, 29808, 18467),
+      );
+      expect(plan.timeline.map((year) => year.mileageKm), [
+        45000,
+        49000,
+        53000,
+        57000,
+        61000,
+        65000,
+        69000,
+        73000,
+        77000,
+        81000,
+        85000,
+        89000,
+        93000,
+        97000,
+        99333,
+      ]);
+      expect(plan.timeline.first.year, 2026);
+      expect(plan.timeline.last.year, 2040);
+      expect(plan.timelinePending, isFalse);
+      expect(plan.reservePending, isFalse);
+    },
+  );
   test('atomic apply, affected calculations once and no-op zero', () {
     final cases = [
       (conditions(), 0, 0),
@@ -50,7 +58,7 @@ void main() {
         1,
         1,
       ),
-      (conditions(ownership: 80), 0, 0),
+      (conditions(ownership: 80), 1, 0),
     ];
     for (final entry in cases) {
       final calls = CalculationCalls();
@@ -128,7 +136,7 @@ void main() {
     plan.apply(conditions(fund: 999999999));
     expect(plan.reservePending, isFalse);
     expect(plan.homeUpdate, isNull);
-    plan.apply(conditions(fund: 999999999, ownership: 80));
+    plan.apply(conditions(fund: 999999999));
     expect((plan.timelinePending, plan.reservePending), (false, false));
   });
   test('same result preserves existing pending and delta', () {

@@ -651,8 +651,8 @@ void main() {
       expect(result.plannedExpensesOnlyMonthlyYen, 11341);
       expect(result.repairIncludedMonthlyYen, 29808);
       expect(result.additionalMonthlyYen, 18467);
-      expect(after.timeline, hasLength(10));
-      for (var i = 0; i < 10; i++) {
+      expect(after.timeline, hasLength(15));
+      for (var i = 0; i < after.timeline.length; i++) {
         final a = after.timeline[i];
         final b = before.timeline[i];
         expect(

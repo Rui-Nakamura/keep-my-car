@@ -203,7 +203,7 @@ void main() {
     expect((calls.timeline, calls.reserve), (1, 1));
   });
 
-  test('shorten filters both calculator inputs; extend restores without changing ten-year window', () {
+  test('shorten filters both calculator inputs; extend restores target-bounded timeline', () {
     final calls = CalculationCalls();
     List<PlannedExpense> reserveInput = [];
     final plan = session(
@@ -244,14 +244,14 @@ void main() {
       plan.timeline.map((y) => y.totalYen).reduce((a, b) => a + b),
       300000,
     );
-    expect((plan.timeline.first.year, plan.timeline.last.year), (2026, 2035));
+    expect((plan.timeline.first.year, plan.timeline.last.year), (2026, 2030));
     calls.reset();
     plan.apply(conditions());
     expect((calls.timeline, calls.reserve), (1, 1));
     expect(plan.includedExpenses, list);
     expect(
       plan.timeline.map((y) => y.totalYen).reduce((a, b) => a + b),
-      1600000,
+      2550000,
     );
     expect(
       (plan.reserveResult as RepairReserveSuccess).repairIncludedMonthlyYen,
@@ -279,7 +279,7 @@ void main() {
       (plan.reserveResult as RepairReserveSuccess).repairIncludedMonthlyYen,
       before.repairIncludedMonthlyYen,
     );
-    expect((plan.timelinePending, plan.reservePending), (false, false));
+    expect((plan.timelinePending, plan.reservePending), (true, false));
   });
 
   test('zero/name changes notify timeline only; unaffected pending and B-C reserve delta survive', () {
@@ -329,7 +329,7 @@ void main() {
       month: plan.ownershipTargetMonth,
       amountYen: 0,
     );
-    expect(plan.timelinePending, isFalse);
+    expect(plan.timelinePending, isTrue);
     expect(plan.reservePending, isTrue);
     expect(plan.reserveDeltaYen, pendingDelta);
   });

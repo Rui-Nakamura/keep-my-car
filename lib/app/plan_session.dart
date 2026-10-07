@@ -3,6 +3,7 @@ import '../domain/models/planned_expense.dart';
 import '../domain/models/year_month.dart';
 import '../domain/plan_conditions_validation.dart';
 import '../domain/planned_expense_validation.dart';
+import '../domain/projected_mileage.dart';
 import '../domain/repair_reserve_calculator.dart';
 import '../features/timeline/future_timeline_calculator.dart';
 
@@ -75,6 +76,51 @@ class PlanSession {
   );
   List<PlannedExpense> get includedExpenses =>
       List.unmodifiable(plannedExpenses.where(isExpenseIncluded));
+
+  int get ownershipTargetOwnerAge =>
+      completedYears(birthMonth, ownershipTargetMonth);
+  int get ownershipTargetCarAge =>
+      completedYears(firstRegistrationMonth, ownershipTargetMonth);
+  int get ownershipTargetMileageKm => projectedMileageKm(
+    currentMileageKm: _conditions.currentMileageKm,
+    annualMileageKm: _conditions.annualMileageKm,
+    referenceMonth: referenceMonth,
+    targetMonth: ownershipTargetMonth,
+  );
+
+  int _sumExpenses(Iterable<PlannedExpense> expenses) =>
+      expenses.fold(0, (sum, expense) => sum + expense.amountYen);
+
+  int get ownershipTargetExpensesTotalYen => _sumExpenses(includedExpenses);
+
+  YearMonth? get nextExpenseMonth {
+    YearMonth? next;
+    for (final expense in includedExpenses) {
+      if (next == null || expense.plannedMonth.compareTo(next) < 0) {
+        next = expense.plannedMonth;
+      }
+    }
+    return next;
+  }
+
+  List<PlannedExpense> get expensesInNextMonth {
+    final month = nextExpenseMonth;
+    return List.unmodifiable(
+      includedExpenses.where((e) => e.plannedMonth == month),
+    );
+  }
+
+  int get nextMonthTotalYen => _sumExpenses(expensesInNextMonth);
+  int get nextYearExpensesTotalYen => _sumExpenses(
+    includedExpenses.where(
+      (e) => e.plannedMonth.year == referenceMonth.year + 1,
+    ),
+  );
+  int get fiveYearExpensesTotalYen => _sumExpenses(
+    includedExpenses.where(
+      (e) => e.plannedMonth.year < referenceMonth.year + 5,
+    ),
+  );
 
   ExpenseChange saveExpense({
     int? id,
@@ -186,6 +232,7 @@ class PlanSession {
     final expensesAffected = !_sameExpenses(oldIncluded, includedExpenses);
     final timelineAffected =
         expensesAffected ||
+        next.ownershipTargetAge != old.ownershipTargetAge ||
         next.currentMileageKm != old.currentMileageKm ||
         next.annualMileageKm != old.annualMileageKm;
     final reserveAffected =
@@ -285,9 +332,10 @@ class PlanSession {
 
   List<TimelineYearData> _calculateTimeline() => List.unmodifiable(
     _timelineCalculator(
-      currentYear: referenceMonth.year,
-      currentOwnerAge: completedYears(birthMonth, referenceMonth),
-      currentCarAge: completedYears(firstRegistrationMonth, referenceMonth),
+      referenceMonth: referenceMonth,
+      birthMonth: birthMonth,
+      firstRegistrationMonth: firstRegistrationMonth,
+      ownershipTargetMonth: ownershipTargetMonth,
       currentMileageKm: _conditions.currentMileageKm,
       annualMileageKm: _conditions.annualMileageKm,
       plannedExpenses: includedExpenses,
