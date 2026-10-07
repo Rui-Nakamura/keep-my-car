@@ -1,3 +1,10 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:keep_my_car/features/home/presentation/home_screen.dart';
+import 'package:keep_my_car/features/repair_reserve/presentation/repair_reserve_screen.dart';
+import 'package:keep_my_car/domain/models/ownership_goal.dart';
+import 'package:keep_my_car/domain/models/major_repair_reserve.dart';
+
 import 'package:keep_my_car/app/plan_session.dart';
 import 'package:keep_my_car/domain/models/plan_conditions.dart';
 import 'package:keep_my_car/domain/models/year_month.dart';
@@ -86,4 +93,24 @@ class CalculationCalls {
     timeline = 0;
     reserve = 0;
   }
+}
+
+// Step 15-C temporarily removes the ordinary reserve navigation entry.
+Future<void> openReserveForTest(WidgetTester tester) async {
+  final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
+  final plan = home.session;
+  final screen = RepairReserveScreen(
+    ownershipGoal: OwnershipGoal(targetAge: plan.conditions.ownershipTargetAge),
+    reserve: MajorRepairReserve(
+      amountYen: plan.conditions.largeRepairReserveYen,
+      targetAge: plan.conditions.reserveTargetAge,
+    ),
+    result: plan.reserveResult,
+    updatePending: plan.reservePending,
+    deltaYen: plan.reserveDeltaYen,
+    onViewed: home.onReserveViewed,
+  );
+  home.onNavigate();
+  Navigator.of(tester.element(find.byType(HomeScreen)))
+      .push<void>(MaterialPageRoute(builder: (_) => screen));
 }

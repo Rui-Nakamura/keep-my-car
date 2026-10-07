@@ -13,6 +13,8 @@ import 'package:keep_my_car/features/repair_reserve/presentation/repair_reserve_
 
 import 'plan_test_support.dart';
 
+import 'package:keep_my_car/features/home/presentation/home_screen.dart';
+
 Finder field(String name) => find.byKey(ValueKey('expense-input-$name'));
 Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   // Let TextField's deferred caret scrolling finish before revealing a button.
@@ -37,8 +39,29 @@ Future<void> enterExpense(
 
 Future<void> save(WidgetTester tester) =>
     tapVisible(tester, find.byKey(const ValueKey('save-expense')));
-Future<void> openList(WidgetTester tester) =>
-    tapVisible(tester, find.text('予定費を見る・追加する'));
+Future<void> openList(WidgetTester tester) async {
+  final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
+  if (home.session.plannedExpenses.isNotEmpty) {
+    await tapVisible(
+      tester,
+      find.text(home.session.includedExpenses.isEmpty ? '予定費を確認する' : 'すべて見る'),
+    );
+  } else {
+    // Empty Home prioritizes direct creation; test list CRUD independently.
+    Navigator.of(tester.element(find.byType(HomeScreen))).push<void>(
+      MaterialPageRoute(
+        builder: (_) => PlannedExpensesScreen(
+          session: home.session,
+          onChanged: home.onExpensesChanged,
+          onSaveExpense: home.onSaveExpense,
+          onDeleteExpense: home.onDeleteExpense,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+}
+
 Future<void> add(WidgetTester tester) =>
     tapVisible(tester, find.widgetWithText(FilledButton, '予定費を追加'));
 Future<void> edit(WidgetTester tester, int id) =>
@@ -416,7 +439,8 @@ void main() {
         expect(plan.timelinePending, isFalse);
         expect(plan.reservePending, first);
         await back(tester);
-        await tapVisible(tester, find.text('詳しく見る'));
+        await openReserveForTest(tester);
+        await tester.pumpAndSettle();
         expect(find.text('月 1,000,000円'), findsNWidgets(2));
         expect(
           tester

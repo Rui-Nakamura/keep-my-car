@@ -74,8 +74,8 @@ void main() {
           reserve: 3000000,
         ),
       );
-      expect(find.text('80歳まで保有'), findsOneWidget);
-      expect(find.text('66歳までに大型修理用として3,000,000円を備える'), findsOneWidget);
+      expect(find.text('80歳まで乗る計画'), findsOneWidget);
+      expect(find.text('66歳までに大型修理用として3,000,000円を備える'), findsNothing);
       expect(find.byKey(const ValueKey('home-update')), findsOneWidget);
       expect(plan.timelinePending, isTrue);
       expect(plan.reservePending, isTrue);
@@ -122,7 +122,7 @@ void main() {
         plan.conditions,
         conditions(mileage: 0, annual: 0, fund: 0, reserve: 0),
       );
-      expect(find.text('70歳まで保有'), findsOneWidget);
+      expect(find.text('70歳まで乗る計画'), findsOneWidget);
     },
   );
 
@@ -240,7 +240,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await enter(tester, 'reserve', '1000000000');
       await apply(tester);
-      expect(find.text('70歳まで保有'), findsOneWidget);
+      expect(find.text('70歳まで乗る計画'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

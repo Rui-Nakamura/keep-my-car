@@ -36,7 +36,7 @@ class FutureTimelineScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('これから10年間の計画', style: text.headlineLarge),
+                Text('保有目標までの計画', style: text.headlineLarge),
                 const SizedBox(height: AppSpacing.xxl),
                 if (updatePending) ...[
                   const Text(

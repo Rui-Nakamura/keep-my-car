@@ -15,6 +15,31 @@ PlannedExpense expense(int id, int year, int month, int yen) => PlannedExpense(
 );
 
 void main() {
+  test('ownership boundary getters use signed month difference without recalculation', () {
+    final calls = CalculationCalls();
+    for (final entry in [
+      (const YearMonth(2026, 9), 163, false),
+      (const YearMonth(2039, 9), 7, false),
+      (const YearMonth(2030, 4), 120, false),
+      (const YearMonth(2040, 4), 0, false),
+      (const YearMonth(2040, 5), -1, true),
+    ]) {
+      final plan = session(
+        reference: entry.$1,
+        timelineCalculator: calls.calculateTimeline,
+        reserveCalculator: calls.calculateReserve,
+      );
+      calls.reset();
+      expect(plan.monthsUntilOwnershipTarget, entry.$2);
+      expect(plan.ownershipTargetReached, entry.$3);
+      expect((calls.timeline, calls.reserve), (0, 0));
+    }
+    final plan = session();
+    plan.apply(conditions(ownership: 80));
+    expect(plan.monthsUntilOwnershipTarget, 283);
+    expect(plan.ownershipTargetReached, isFalse);
+  });
+
   test('empty summaries are normal and have no next month', () {
     final plan = session(expenses: []);
     expect(plan.ownershipTargetExpensesTotalYen, 0);

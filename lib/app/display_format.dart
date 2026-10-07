@@ -13,3 +13,7 @@ String formatReserveYen(int value) =>
 String formatMonth(YearMonth value) => '${value.year}年${value.month}月';
 
 String formatKm(int value) => '${formatNumber(value)}km';
+
+/// Home-only approximation; detailed timeline distances remain unchanged.
+String formatHomeMileageKm(int value) =>
+    '約${formatKm(value < 1000 ? value : ((value + 500) ~/ 1000) * 1000)}';

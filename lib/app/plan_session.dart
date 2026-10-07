@@ -69,6 +69,12 @@ class PlanSession {
   List<PlannedExpense> get plannedExpenses => _plannedExpenses;
   YearMonth get ownershipTargetMonth =>
       reserveMonth(birthMonth, _conditions.ownershipTargetAge);
+  bool get ownershipTargetReached =>
+      referenceMonth.compareTo(ownershipTargetMonth) > 0;
+  int get monthsUntilOwnershipTarget =>
+      (ownershipTargetMonth.year - referenceMonth.year) * 12 +
+      ownershipTargetMonth.month -
+      referenceMonth.month;
   bool isExpenseIncluded(PlannedExpense expense) => isExpenseMonthInRange(
     expense.plannedMonth,
     referenceMonth: referenceMonth,

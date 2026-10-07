@@ -86,7 +86,7 @@ void main() {
             .widget<HomeScreen>(find.byType(HomeScreen))
             .session;
         final list = before.plannedExpenses;
-        await tapVisible(tester, find.text('予定費を見る・追加する'));
+        await tapVisible(tester, find.text('すべて見る'));
         await tapVisible(
           tester,
           operation == 'add'

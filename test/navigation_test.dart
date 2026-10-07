@@ -21,9 +21,7 @@ void main() {
       );
       await tester.pumpWidget(testApp(session: plan));
       await tester.pumpAndSettle();
-      final link = find.text('詳しく見る');
-      await tester.ensureVisible(link);
-      await tester.tap(link);
+      await openReserveForTest(tester);
       await tester.pumpAndSettle();
       expect(
         (plan.reserveResult as RepairReserveSuccess).repairIncludedMonthlyYen,
@@ -41,7 +39,7 @@ void main() {
       '未来タイムラインを見る',
       '未来タイムライン',
       [
-        'これから10年間の計画',
+        '保有目標までの計画',
         '2026年',
         '56歳',
         '車齢8年',
@@ -51,7 +49,7 @@ void main() {
         '80,000円',
       ],
     ),
-    ('予定費を見る・追加する', '愛車予定費', ['6件の予定']),
+    ('すべて見る', '愛車予定費', ['6件の予定']),
     (
       '詳しく見る',
       '大型修理への備え',
@@ -99,10 +97,14 @@ void main() {
           );
           await tester.pumpAndSettle();
 
-          final link = find.text(destination.$1);
-          await tester.ensureVisible(link);
-          await tester.pumpAndSettle();
-          await tester.tap(link);
+          if (destination.$1 == '詳しく見る') {
+            await openReserveForTest(tester);
+          } else {
+            final link = find.text(destination.$1);
+            await tester.ensureVisible(link);
+            await tester.pumpAndSettle();
+            await tester.tap(link);
+          }
           await tester.pumpAndSettle();
           expect(find.byType(HomeScreen), findsNothing);
           expect(find.widgetWithText(AppBar, destination.$2), findsOneWidget);
@@ -146,7 +148,7 @@ void main() {
             isA<HomeScreen>(),
           );
           expect(find.byType(AppBar), findsNothing);
-          for (final label in ['70歳まで保有', '65歳までに大型修理用として2,000,000円を備える']) {
+          for (final label in ['70歳まで乗る計画', 'あと13年7か月']) {
             expect(find.text(label), findsOneWidget);
           }
           expect(tester.takeException(), isNull);

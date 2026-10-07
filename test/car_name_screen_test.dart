@@ -266,8 +266,8 @@ void main() {
           longName,
           '愛車名を編集',
           '未来タイムラインを見る',
-          '詳しく見る',
-          '予定費を見る・追加する',
+          '＋ 予定費を追加',
+          'すべて見る',
           '設定',
         ]) {
           await tester.ensureVisible(find.text(value));

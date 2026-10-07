@@ -210,7 +210,7 @@ void main() {
       await enter(tester, 'reserve', '3000000');
       await apply(tester);
       expect((calls.timeline, calls.reserve), (1, 1));
-      expect(find.text('未来タイムラインと大型修理への備えを更新しました'), findsOneWidget);
+      expect(find.text('未来タイムラインを更新しました'), findsOneWidget);
       final savedDelta = plan.reserveDeltaYen;
       calls.reset();
       await tester.ensureVisible(find.text('未来タイムラインを見る'));
@@ -240,8 +240,7 @@ void main() {
       expect(plan.reservePending, isTrue);
       expect(plan.reserveDeltaYen, savedDelta);
       expect(find.byKey(const ValueKey('home-update')), findsNothing);
-      await tester.ensureVisible(find.text('詳しく見る'));
-      await tester.tap(find.text('詳しく見る'));
+      await openReserveForTest(tester);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(plan.reservePending, isFalse);
@@ -265,8 +264,12 @@ void main() {
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       for (final link in ['未来タイムラインを見る', '詳しく見る']) {
-        await tester.ensureVisible(find.text(link));
-        await tester.tap(find.text(link));
+        if (link == '詳しく見る') {
+          await openReserveForTest(tester);
+        } else {
+          await tester.ensureVisible(find.text(link));
+          await tester.tap(find.text(link));
+        }
         await tester.pumpAndSettle();
         expect(
           find.byKey(const ValueKey('timeline-update-text')),
