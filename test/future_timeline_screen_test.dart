@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'persistence_app_support.dart';
 
 import 'package:keep_my_car/app/theme/app_theme.dart';
+import 'package:keep_my_car/app/display_format.dart';
 import 'package:keep_my_car/domain/models/planned_expense.dart';
 import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/features/timeline/future_timeline_calculator.dart';
@@ -30,17 +31,32 @@ Finder yearSection(int year) => find.byKey(ValueKey('timeline-year-$year'));
 Finder inYear(int year, String label) =>
     find.descendant(of: yearSection(year), matching: find.text(label));
 
-Future<void> pumpTimeline(
+Future<List<TimelineYearData>> pumpTimeline(
   WidgetTester tester,
   List<PlannedExpense> expenses, {
   int age = 56,
   double scale = 1,
   int year = 2026,
+  YearMonth? reference,
+  YearMonth? target,
+  YearMonth? birth,
+  YearMonth? registration,
 }) async {
   tester.view.physicalSize = const Size(360, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  final referenceMonth = reference ?? YearMonth(year, 1);
+  final ownershipTargetMonth = target ?? YearMonth(year + 9, 12);
+  final years = calculateFutureTimeline(
+    referenceMonth: referenceMonth,
+    birthMonth: birth ?? YearMonth(year - age, 1),
+    firstRegistrationMonth: registration ?? YearMonth(year - 8, 1),
+    ownershipTargetMonth: ownershipTargetMonth,
+    currentMileageKm: 45000,
+    annualMileageKm: 4000,
+    plannedExpenses: expenses,
+  );
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light,
@@ -50,18 +66,13 @@ Future<void> pumpTimeline(
         child: child!,
       ),
       home: FutureTimelineScreen(
-        years: calculateFutureTimeline(
-          referenceMonth: YearMonth(year, 1),
-          birthMonth: YearMonth(year - age, 1),
-          firstRegistrationMonth: YearMonth(year - 8, 1),
-          ownershipTargetMonth: YearMonth(year + 9, 12),
-          currentMileageKm: 45000,
-          annualMileageKm: 4000,
-          plannedExpenses: expenses,
-        ),
+        years: years,
+        referenceMonth: referenceMonth,
+        ownershipTargetMonth: ownershipTargetMonth,
       ),
     ),
   );
+  return years;
 }
 
 void expectSafeLayout(WidgetTester tester) {
@@ -81,6 +92,193 @@ void expectSafeLayout(WidgetTester tester) {
 }
 
 void main() {
+  const expectedThrough2039 = [
+    (2026, '10月時点', true),
+    (2027, '10月時点の見込み', false),
+    (2028, '10月時点の見込み', false),
+    (2029, '10月時点の見込み', false),
+    (2030, '10月時点の見込み', false),
+    (2031, '10月時点の見込み', false),
+    (2032, '10月時点の見込み', false),
+    (2033, '10月時点の見込み', false),
+    (2034, '10月時点の見込み', false),
+    (2035, '10月時点の見込み', false),
+    (2036, '10月時点の見込み', false),
+    (2037, '10月時点の見込み', false),
+    (2038, '10月時点の見込み', false),
+    (2039, '10月時点の見込み', false),
+  ];
+  for (final scale in [1.0, 3.0]) {
+    for (final testCase in const [
+      (
+        target: YearMonth(2040, 4),
+        currentCount: 1,
+        rows: [...expectedThrough2039, (2040, '4月時点の見込み', false)],
+      ),
+      (
+        target: YearMonth(2026, 12),
+        currentCount: 0,
+        rows: [(2026, '12月時点の見込み', false)],
+      ),
+      (
+        target: YearMonth(2026, 10),
+        currentCount: 1,
+        rows: [(2026, '10月時点', true)],
+      ),
+      (
+        target: YearMonth(2025, 4),
+        currentCount: 1,
+        rows: [(2026, '10月時点', true)],
+      ),
+      (
+        target: YearMonth(2026, 4),
+        currentCount: 1,
+        rows: [(2026, '10月時点', true)],
+      ),
+      (
+        target: YearMonth(2040, 10),
+        currentCount: 1,
+        rows: [...expectedThrough2039, (2040, '10月時点の見込み', false)],
+      ),
+    ]) {
+      testWidgets(
+        'evaluation month and current marker for ${testCase.target} at scale $scale',
+        (tester) async {
+          const reference = YearMonth(2026, 10);
+          final years = await pumpTimeline(
+            tester,
+            [],
+            reference: reference,
+            target: testCase.target,
+            birth: const YearMonth(1970, 7),
+            registration: const YearMonth(2018, 7),
+            scale: scale,
+          );
+          expect(
+            years.map((row) => row.year),
+            orderedEquals(testCase.rows.map((expected) => expected.$1)),
+          );
+          for (final entry in years.indexed) {
+            final row = entry.$2;
+            final expected = testCase.rows[entry.$1];
+            final year = expected.$1;
+            final label = expected.$2;
+            expect(inYear(year, label), findsOneWidget);
+            expect(
+              tester
+                  .widgetList<Text>(
+                    find.descendant(
+                      of: yearSection(year),
+                      matching: find.textContaining('月時点'),
+                    ),
+                  )
+                  .map((text) => text.data),
+              orderedEquals([label]),
+            );
+            expect(
+              inYear(year, '現在'),
+              expected.$3 ? findsOneWidget : findsNothing,
+            );
+            for (final value in [
+              '${row.ownerAge}歳',
+              '車齢${row.carAge}年',
+              '約${formatKm(row.mileageKm)}',
+            ]) {
+              expect(inYear(year, value), findsOneWidget);
+            }
+            await tester.ensureVisible(inYear(year, label));
+            await tester.pumpAndSettle();
+            expectSafeLayout(tester);
+            final text = tester.widget<Text>(inYear(year, label));
+            expect(text.maxLines, isNull);
+            expect(text.overflow, isNot(TextOverflow.ellipsis));
+            final paragraph = tester.renderObject<RenderParagraph>(
+              find.descendant(
+                of: inYear(year, label),
+                matching: find.byType(RichText),
+              ),
+            );
+            // Every character has laid-out glyph bounds within the paragraph.
+            for (var offset = 0; offset < label.length; offset++) {
+              final boxes = paragraph.getBoxesForSelection(
+                TextSelection(baseOffset: offset, extentOffset: offset + 1),
+              );
+              expect(boxes, isNotEmpty);
+              for (final box in boxes) {
+                expect(box.left, greaterThanOrEqualTo(0));
+                expect(box.right, lessThanOrEqualTo(paragraph.size.width));
+                expect(box.bottom, lessThanOrEqualTo(paragraph.size.height));
+              }
+            }
+          }
+          // The engine's first-row flag retains its original meaning.
+          expect(years.first.isCurrent, isTrue);
+          expect(find.text('現在'), findsNWidgets(testCase.currentCount));
+        },
+      );
+    }
+  }
+
+  testWidgets(
+    'evaluation month does not truncate annual expenses or change classification',
+    (tester) async {
+      final input = [
+        expense('目標後', 2040, 5, 900000),
+        expense('12月', 2031, 12, 300),
+        expense('同月先', 2031, 11, 100),
+        expense('期限超過', 2026, 9, 800000),
+        expense('同月後', 2031, 11, 200),
+        expense('基準月', 2026, 10, 50),
+        expense('目標月', 2040, 4, 400),
+        expense('無料点検', 2032, 11, 0),
+      ];
+      final original = List<PlannedExpense>.of(input);
+      final years = await pumpTimeline(
+        tester,
+        input,
+        reference: const YearMonth(2026, 10),
+        target: const YearMonth(2040, 4),
+      );
+      expect(inYear(2031, '10月時点の見込み'), findsOneWidget);
+      expect(inYear(2031, '年間予定費 600円'), findsOneWidget);
+      for (final row in years) {
+        if (row.expenses.isEmpty) {
+          expect(inYear(row.year, '予定費なし'), findsOneWidget);
+        } else {
+          expect(inYear(row.year, '予定費なし'), findsNothing);
+          expect(
+            inYear(row.year, '年間予定費 ${formatYen(row.totalYen)}'),
+            findsOneWidget,
+          );
+          for (final expense in row.expenses) {
+            expect(inYear(row.year, expense.name), findsOneWidget);
+            expect(
+              inYear(row.year, formatMonth(expense.plannedMonth)),
+              findsWidgets,
+            );
+            expect(
+              inYear(row.year, formatYen(expense.amountYen)),
+              findsWidgets,
+            );
+          }
+        }
+      }
+      final labels = ['同月先', '同月後', '12月'];
+      for (var i = 1; i < labels.length; i++) {
+        expect(
+          tester.getTopLeft(find.text(labels[i - 1])).dy,
+          lessThan(tester.getTopLeft(find.text(labels[i])).dy),
+        );
+      }
+      expect(find.text('期限超過'), findsNothing);
+      expect(find.text('目標後'), findsNothing);
+      expect(inYear(2032, '無料点検'), findsOneWidget);
+      expect(inYear(2032, '年間予定費 0円'), findsOneWidget);
+      expect(input, orderedEquals(original));
+      expectSafeLayout(tester);
+    },
+  );
+
   testWidgets(
     'empty years through the supplied target keep all yearly values and only first current marker',
     (tester) async {

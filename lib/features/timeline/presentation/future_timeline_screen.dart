@@ -4,19 +4,31 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/update_feedback.dart';
 import '../future_timeline_calculator.dart';
 import '../../../domain/models/planned_expense.dart';
+import '../../../domain/models/year_month.dart';
 import '../../../app/display_format.dart';
 
 class FutureTimelineScreen extends StatelessWidget {
   const FutureTimelineScreen({
     super.key,
     required this.years,
+    required this.referenceMonth,
+    required this.ownershipTargetMonth,
     this.updatePending = false,
     this.onViewed,
   });
 
   final List<TimelineYearData> years;
+  final YearMonth referenceMonth;
+  final YearMonth ownershipTargetMonth;
   final bool updatePending;
   final VoidCallback? onViewed;
+
+  // Display metadata only; yearly values and expense totals remain calculated data.
+  YearMonth _evaluationMonth(int year) =>
+      year == ownershipTargetMonth.year &&
+          ownershipTargetMonth.compareTo(referenceMonth) >= 0
+      ? ownershipTargetMonth
+      : YearMonth(year, referenceMonth.month);
 
   @override
   Widget build(BuildContext context) => UpdateFeedback(
@@ -51,7 +63,8 @@ class FutureTimelineScreen extends StatelessWidget {
                     ownerAge: year.ownerAge,
                     carAge: year.carAge,
                     mileageKm: year.mileageKm,
-                    isCurrent: year.isCurrent,
+                    evaluationMonth: _evaluationMonth(year.year),
+                    referenceMonth: referenceMonth,
                     expenses: year.expenses,
                     totalYen: year.totalYen,
                     emphasis: emphasis,
@@ -71,7 +84,8 @@ class _TimelineYear extends StatelessWidget {
     required this.ownerAge,
     required this.carAge,
     required this.mileageKm,
-    required this.isCurrent,
+    required this.evaluationMonth,
+    required this.referenceMonth,
     required this.expenses,
     required this.totalYen,
     required this.emphasis,
@@ -81,7 +95,8 @@ class _TimelineYear extends StatelessWidget {
   final int ownerAge;
   final int carAge;
   final int mileageKm;
-  final bool isCurrent;
+  final YearMonth evaluationMonth;
+  final YearMonth referenceMonth;
   final List<PlannedExpense> expenses;
   final int totalYen;
   final double emphasis;
@@ -91,6 +106,7 @@ class _TimelineYear extends StatelessWidget {
     final theme = Theme.of(context);
     final text = theme.textTheme;
     final milestone = const {60, 65, 70, 75}.contains(ownerAge);
+    final isCurrent = evaluationMonth == referenceMonth;
     return Container(
       key: ValueKey('timeline-year-$year'),
       decoration: BoxDecoration(
@@ -115,6 +131,11 @@ class _TimelineYear extends StatelessWidget {
                 if (isCurrent) Text('現在', style: text.bodyMedium),
               ],
             ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '${evaluationMonth.month}月時点${isCurrent ? '' : 'の見込み'}',
+            style: text.bodyMedium,
           ),
           const SizedBox(height: AppSpacing.sm),
           Container(

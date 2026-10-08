@@ -6,11 +6,48 @@ import 'persistence_app_support.dart';
 
 import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/features/home/presentation/home_screen.dart';
+import 'package:keep_my_car/features/timeline/presentation/future_timeline_screen.dart';
 import 'package:keep_my_car/domain/repair_reserve_calculator.dart';
 
 import 'plan_test_support.dart';
 
 void main() {
+  testWidgets(
+    'Home passes formal months and cached timeline without recalculating',
+    (tester) async {
+      final calls = CalculationCalls();
+      final plan = session(
+        initial: conditions(ownership: 56, age: 56),
+        birth: const YearMonth(1970, 12),
+        reference: const YearMonth(2026, 10),
+        timelineCalculator: calls.calculateTimeline,
+        reserveCalculator: calls.calculateReserve,
+      );
+      final cached = plan.timeline;
+      calls.reset();
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
+      final link = find.text('未来タイムラインを見る');
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      final screen = tester.widget<FutureTimelineScreen>(
+        find.byType(FutureTimelineScreen),
+      );
+      expect(screen.years, same(cached));
+      expect(screen.referenceMonth, plan.referenceMonth);
+      expect(screen.ownershipTargetMonth, const YearMonth(2026, 12));
+      expect(find.text('12月時点の見込み'), findsOneWidget);
+      expect(find.text('現在'), findsNothing);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect((calls.timeline, calls.reserve), (0, 0));
+      expect(plan.timeline, same(cached));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Home passes supplied funds and converts target age to birth month',
     (tester) async {

@@ -41,6 +41,8 @@ void main() {
         final screen = timeline
             ? FutureTimelineScreen(
                 years: plan.timeline,
+                referenceMonth: plan.referenceMonth,
+                ownershipTargetMonth: plan.ownershipTargetMonth,
                 updatePending: true,
                 onViewed: () => acknowledgements++,
               )
@@ -108,6 +110,8 @@ void main() {
                 return timeline
                     ? FutureTimelineScreen(
                         years: plan.timeline,
+                        referenceMonth: plan.referenceMonth,
+                        ownershipTargetMonth: plan.ownershipTargetMonth,
                         updatePending: true,
                         onViewed: () {
                           acknowledgements++;
@@ -162,6 +166,8 @@ void main() {
               child: timeline
                   ? FutureTimelineScreen(
                       years: plan.timeline,
+                      referenceMonth: plan.referenceMonth,
+                      ownershipTargetMonth: plan.ownershipTargetMonth,
                       updatePending: true,
                     )
                   : RepairReserveScreen(

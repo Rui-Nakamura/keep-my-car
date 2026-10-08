@@ -253,6 +253,8 @@ class HomeScreen extends StatelessWidget {
                   context,
                   FutureTimelineScreen(
                     years: session.timeline,
+                    referenceMonth: session.referenceMonth,
+                    ownershipTargetMonth: session.ownershipTargetMonth,
                     updatePending: session.timelinePending,
                     onViewed: onTimelineViewed,
                   ),
