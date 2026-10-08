@@ -4,6 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'persistence_app_support.dart';
 
+import 'package:keep_my_car/app/app.dart';
+import 'package:keep_my_car/persistence/persistence_result.dart';
+import 'package:keep_my_car/features/planned_expenses/presentation/planned_expenses_screen.dart';
+
 import 'package:keep_my_car/domain/models/year_month.dart';
 import 'package:keep_my_car/features/home/presentation/home_screen.dart';
 import 'package:keep_my_car/features/timeline/presentation/future_timeline_screen.dart';
@@ -12,6 +16,113 @@ import 'package:keep_my_car/domain/repair_reserve_calculator.dart';
 import 'plan_test_support.dart';
 
 void main() {
+  testWidgets(
+    'Home passes no saved expenses for reached target without retention notice',
+    (tester) async {
+      final plan = session(
+        initial: conditions(ownership: 55),
+        birth: const YearMonth(1970, 4),
+        reference: const YearMonth(2026, 10),
+        expenses: [],
+      );
+      await tester.pumpWidget(testApp(session: plan));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('未来タイムラインを見る'));
+      await tester.tap(find.text('未来タイムラインを見る'));
+      await tester.pumpAndSettle();
+      final screen = tester.widget<FutureTimelineScreen>(
+        find.byType(FutureTimelineScreen),
+      );
+      expect(screen.hasSavedPlannedExpenses, isFalse);
+      expect(find.text('保有目標に到達しています'), findsOneWidget);
+      expect(find.text('設定している保有目標：55歳・2025年4月'), findsOneWidget);
+      expect(find.textContaining('登録済みの予定費'), findsNothing);
+      expect(find.textContaining('「愛車予定費」'), findsNothing);
+      expect(screen.years.length, 1);
+      expect(screen.years.single.year, 2026);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'past target retains saved expenses, list access and no navigation saves',
+    (tester) async {
+      final calls = CalculationCalls();
+      final plan = session(
+        initial: conditions(ownership: 55),
+        birth: const YearMonth(1970, 4),
+        reference: const YearMonth(2026, 10),
+        timelineCalculator: calls.calculateTimeline,
+        reserveCalculator: calls.calculateReserve,
+      );
+      final stored = plan.plannedExpenses;
+      final original = List.of(stored);
+      final cached = plan.timeline;
+      final reserve = plan.reserveResult;
+      final repository = TestRepository(Loaded(sampleSnapshot(plan)));
+      calls.reset();
+      await tester.pumpWidget(
+        KeepMyCarApp(
+          repository: repository,
+          now: () => DateTime(2026, 10),
+          sessionFactory: (_, _) => plan,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(stored.length, greaterThan(1));
+      final link = find.text('未来タイムラインを見る');
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      final screen = tester.widget<FutureTimelineScreen>(
+        find.byType(FutureTimelineScreen),
+      );
+      expect(screen.years, same(cached));
+      expect(screen.ownershipTargetReached, isTrue);
+      expect(screen.hasSavedPlannedExpenses, isTrue);
+      expect(find.text('登録済みの予定費は削除されていません。「愛車予定費」から確認できます。'), findsOneWidget);
+      expect(screen.ownershipTargetAge, 55);
+      expect(screen.ownershipTargetMonth, const YearMonth(2025, 4));
+      expect(find.text('設定している保有目標：55歳・2025年4月'), findsOneWidget);
+      expect(find.text('保有目標：56歳・2025年4月'), findsNothing);
+      expect(find.byKey(const ValueKey('timeline-year-2026')), findsOneWidget);
+      expect(find.byKey(const ValueKey('timeline-year-2025')), findsNothing);
+      expect(find.byKey(const ValueKey('timeline-year-2027')), findsNothing);
+      expect(find.text('56歳'), findsOneWidget);
+      expect(find.text('約45,000km'), findsOneWidget);
+      expect(find.text('10月時点'), findsOneWidget);
+      expect(find.text('現在'), findsOneWidget);
+      expect(find.byIcon(Icons.flag_outlined), findsNothing);
+      expect(find.text('保有目標を見直す'), findsNothing);
+      expect(cached.single.totalYen, 0);
+      expect(cached.single.expenses, isEmpty);
+      for (final expense in original) {
+        expect(find.text(expense.name), findsNothing);
+      }
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      final listLink = find.text('予定費を確認する');
+      await tester.ensureVisible(listLink);
+      await tester.tap(listLink);
+      await tester.pumpAndSettle();
+      expect(find.byType(PlannedExpensesScreen), findsOneWidget);
+      expect(find.widgetWithText(AppBar, '愛車予定費'), findsOneWidget);
+      for (final expense in original) {
+        expect(find.text(expense.name), findsWidgets);
+      }
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(plan.plannedExpenses, same(stored));
+      expect(plan.plannedExpenses, orderedEquals(original));
+      expect(plan.timeline, same(cached));
+      expect(plan.reserveResult, same(reserve));
+      expect((calls.timeline, calls.reserve), (0, 0));
+      expect(repository.saves, isEmpty);
+      expect(repository.discards, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Home passes formal months and cached timeline without recalculating',
     (tester) async {
@@ -37,6 +148,9 @@ void main() {
       expect(screen.years, same(cached));
       expect(screen.referenceMonth, plan.referenceMonth);
       expect(screen.ownershipTargetMonth, const YearMonth(2026, 12));
+      expect(screen.ownershipTargetAge, 56);
+      expect(screen.ownershipTargetReached, isFalse);
+      expect(screen.hasSavedPlannedExpenses, isTrue);
       expect(find.text('12月時点の見込み'), findsOneWidget);
       expect(find.text('現在'), findsNothing);
       await tester.tap(find.byType(BackButton));

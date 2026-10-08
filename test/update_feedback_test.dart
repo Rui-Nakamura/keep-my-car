@@ -43,6 +43,9 @@ void main() {
                 years: plan.timeline,
                 referenceMonth: plan.referenceMonth,
                 ownershipTargetMonth: plan.ownershipTargetMonth,
+                ownershipTargetAge: plan.conditions.ownershipTargetAge,
+                ownershipTargetReached: plan.ownershipTargetReached,
+                hasSavedPlannedExpenses: plan.plannedExpenses.isNotEmpty,
                 updatePending: true,
                 onViewed: () => acknowledgements++,
               )
@@ -112,6 +115,10 @@ void main() {
                         years: plan.timeline,
                         referenceMonth: plan.referenceMonth,
                         ownershipTargetMonth: plan.ownershipTargetMonth,
+                        ownershipTargetAge: plan.conditions.ownershipTargetAge,
+                        ownershipTargetReached: plan.ownershipTargetReached,
+                        hasSavedPlannedExpenses:
+                            plan.plannedExpenses.isNotEmpty,
                         updatePending: true,
                         onViewed: () {
                           acknowledgements++;
@@ -168,6 +175,9 @@ void main() {
                       years: plan.timeline,
                       referenceMonth: plan.referenceMonth,
                       ownershipTargetMonth: plan.ownershipTargetMonth,
+                      ownershipTargetAge: plan.conditions.ownershipTargetAge,
+                      ownershipTargetReached: plan.ownershipTargetReached,
+                      hasSavedPlannedExpenses: plan.plannedExpenses.isNotEmpty,
                       updatePending: true,
                     )
                   : RepairReserveScreen(

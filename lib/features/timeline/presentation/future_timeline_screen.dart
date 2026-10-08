@@ -13,6 +13,9 @@ class FutureTimelineScreen extends StatelessWidget {
     required this.years,
     required this.referenceMonth,
     required this.ownershipTargetMonth,
+    required this.ownershipTargetAge,
+    required this.ownershipTargetReached,
+    required this.hasSavedPlannedExpenses,
     this.updatePending = false,
     this.onViewed,
   });
@@ -20,6 +23,9 @@ class FutureTimelineScreen extends StatelessWidget {
   final List<TimelineYearData> years;
   final YearMonth referenceMonth;
   final YearMonth ownershipTargetMonth;
+  final int ownershipTargetAge;
+  final bool ownershipTargetReached;
+  final bool hasSavedPlannedExpenses;
   final bool updatePending;
   final VoidCallback? onViewed;
 
@@ -50,6 +56,25 @@ class FutureTimelineScreen extends StatelessWidget {
               children: [
                 Text('保有目標までの計画', style: text.headlineLarge),
                 const SizedBox(height: AppSpacing.xxl),
+                if (ownershipTargetReached) ...[
+                  Text('保有目標に到達しています', style: text.titleLarge),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    '設定している保有目標：$ownershipTargetAge歳・${formatMonth(ownershipTargetMonth)}',
+                    style: text.bodyLarge,
+                  ),
+                  if (hasSavedPlannedExpenses) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      '登録済みの予定費は削除されていません。「愛車予定費」から確認できます。',
+                      style: text.bodyMedium,
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.xxl),
+                ] else if (ownershipTargetMonth == referenceMonth) ...[
+                  Text('今月が保有目標です', style: text.titleLarge),
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
                 if (updatePending) ...[
                   const Text(
                     '未来タイムラインを更新しました',
@@ -68,6 +93,11 @@ class FutureTimelineScreen extends StatelessWidget {
                     expenses: year.expenses,
                     totalYen: year.totalYen,
                     emphasis: emphasis,
+                    ownershipTargetMonth:
+                        !ownershipTargetReached &&
+                            year.year == ownershipTargetMonth.year
+                        ? ownershipTargetMonth
+                        : null,
                   ),
               ],
             ),
@@ -89,6 +119,7 @@ class _TimelineYear extends StatelessWidget {
     required this.expenses,
     required this.totalYen,
     required this.emphasis,
+    required this.ownershipTargetMonth,
   });
 
   final int year;
@@ -100,6 +131,7 @@ class _TimelineYear extends StatelessWidget {
   final List<PlannedExpense> expenses;
   final int totalYen;
   final double emphasis;
+  final YearMonth? ownershipTargetMonth;
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +165,29 @@ class _TimelineYear extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
+          if (ownershipTargetMonth != null) ...[
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Icon(
+                  Icons.flag_outlined,
+                  size: 20,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                Text(
+                  ownershipTargetMonth == referenceMonth
+                      ? '保有目標：${formatMonth(ownershipTargetMonth!)}'
+                      : '保有目標',
+                  style: text.titleMedium,
+                ),
+              ],
+            ),
+            if (ownershipTargetMonth != referenceMonth)
+              Text(formatMonth(ownershipTargetMonth!), style: text.bodyLarge),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           Text(
             '${evaluationMonth.month}月時点${isCurrent ? '' : 'の見込み'}',
             style: text.bodyMedium,
