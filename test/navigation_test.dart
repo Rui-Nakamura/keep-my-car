@@ -87,8 +87,8 @@ void main() {
       expect(find.byKey(const ValueKey('timeline-year-2026')), findsOneWidget);
       expect(find.byKey(const ValueKey('timeline-year-2025')), findsNothing);
       expect(find.byKey(const ValueKey('timeline-year-2027')), findsNothing);
-      expect(find.text('56歳'), findsOneWidget);
-      expect(find.text('約45,000km'), findsOneWidget);
+      expect(find.text('オーナー 56歳'), findsOneWidget);
+      expect(find.text('想定走行距離 約45,000km'), findsOneWidget);
       expect(find.text('10月時点'), findsOneWidget);
       expect(find.text('現在'), findsOneWidget);
       expect(find.byIcon(Icons.flag_outlined), findsNothing);
@@ -192,11 +192,11 @@ void main() {
       [
         '保有目標までの計画',
         '2026年',
-        '56歳',
-        '車齢8年',
-        '約45,000km',
+        'オーナー 56歳',
+        '車齢 8年',
+        '想定走行距離 約45,000km',
         '12Vバッテリー',
-        '2027年4月',
+        '4月',
         '80,000円',
       ],
     ),
@@ -261,10 +261,17 @@ void main() {
           expect(find.widgetWithText(AppBar, destination.$2), findsOneWidget);
           expect(find.byType(BackButton), findsOneWidget);
           for (final label in destination.$3) {
-            expect(find.text(label), findsOneWidget);
-            await tester.ensureVisible(find.text(label));
+            // Month-only expense labels are scoped to their calendar year.
+            final value = destination.$2 == '未来タイムライン' && label == '4月'
+                ? find.descendant(
+                    of: find.byKey(const ValueKey('timeline-year-2027')),
+                    matching: find.text(label),
+                  )
+                : find.text(label);
+            expect(value, findsOneWidget);
+            await tester.ensureVisible(value);
             await tester.pumpAndSettle();
-            final rect = tester.getRect(find.text(label));
+            final rect = tester.getRect(value);
             expect(rect.left, greaterThanOrEqualTo(20));
             expect(rect.right, lessThanOrEqualTo(340));
           }

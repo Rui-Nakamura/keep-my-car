@@ -429,7 +429,7 @@ void main() {
       for (final first in [true, false]) {
         await tapVisible(tester, find.text('未来タイムラインを見る'));
         expect(find.text('車検'), findsOneWidget);
-        expect(find.text('年間予定費 1,000,000円'), findsOneWidget);
+        expect(find.text('この年の予定費 1,000,000円'), findsOneWidget);
         expect(
           tester
               .widget<FutureTimelineScreen>(find.byType(FutureTimelineScreen))
