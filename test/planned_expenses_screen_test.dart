@@ -26,12 +26,14 @@ Future<void> pumpExpenses(
   WidgetTester tester,
   List<PlannedExpense> expenses, {
   double scale = 1,
+  double width = 360,
+  YearMonth? reference,
 }) async {
-  tester.view.physicalSize = const Size(360, 800);
+  tester.view.physicalSize = Size(width, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  final plan = session(expenses: expenses);
+  final plan = session(expenses: expenses, reference: reference);
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light,
@@ -55,7 +57,7 @@ void expectSafeLayout(WidgetTester tester) {
     final paragraph = element.renderObject! as RenderParagraph;
     final rect = paragraph.localToGlobal(Offset.zero) & paragraph.size;
     expect(rect.left, greaterThanOrEqualTo(0));
-    expect(rect.right, lessThanOrEqualTo(360));
+    expect(rect.right, lessThanOrEqualTo(tester.view.physicalSize.width));
     expect(paragraph.didExceedMaxLines, isFalse);
     if (find
         .ancestor(
@@ -76,6 +78,168 @@ void expectSafeLayout(WidgetTester tester) {
 }
 
 void main() {
+  String summary(WidgetTester tester) => tester
+      .widget<Text>(find.byKey(const ValueKey('included-expenses-total')))
+      .data!;
+
+  testWidgets(
+    'classification includes both boundaries and keeps outside rows below',
+    (tester) async {
+      final input = [
+        expense('目標超過', 2040, 5, 900),
+        expense('過去', 2026, 8, 800),
+        expense('目標月', 2040, 4, 200),
+        expense('基準月', 2026, 9, 100),
+        expense('将来', 2027, 1, 300),
+        expense('対象外無料', 2041, 1, 0),
+      ];
+      final original = List<PlannedExpense>.of(input);
+      await pumpExpenses(tester, input);
+      expect(summary(tester), '600円');
+      expect(find.text('計画外の予定費：3件'), findsOneWidget);
+      expect(find.text('合計 100円'), findsOneWidget);
+      expect(find.text('合計 300円'), findsOneWidget);
+      expect(find.text('合計 200円'), findsOneWidget);
+      expect(find.text('合計 900円'), findsNothing);
+      expect(find.text('予定年月が過ぎています'), findsOneWidget);
+      expect(find.text('保有目標より先の予定です'), findsNWidgets(2));
+      final names = ['基準月', '将来', '目標月', '過去', '目標超過', '対象外無料'];
+      for (var i = 1; i < names.length; i++) {
+        expect(
+          tester.getTopLeft(find.text(names[i - 1])).dy,
+          lessThan(tester.getTopLeft(find.text(names[i])).dy),
+        );
+      }
+      for (final item in input) {
+        final row = find.byKey(ValueKey('expense-${item.id}'));
+        expect(row, findsOneWidget);
+        expect(
+          find.descendant(
+            of: row,
+            matching: find.text(
+              '${item.plannedMonth.year}年${item.plannedMonth.month}月',
+            ),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byKey(ValueKey('edit-expense-${item.id}')), findsOneWidget);
+      }
+      expect(input, orderedEquals(original));
+      expectSafeLayout(tester);
+    },
+  );
+
+  testWidgets(
+    'past target: later-than-target reason wins even for overdue rows; CRUD remains available',
+    (tester) async {
+      await pumpExpenses(tester, [
+        expense('両方', 2040, 5, 100),
+        expense('目標と同月', 2040, 4, 200),
+      ], reference: const YearMonth(2041, 1));
+      expect(summary(tester), '0円');
+      expect(find.text('計画外の予定費：2件'), findsOneWidget);
+      expect(find.text('保有目標までの予定費はありません'), findsOneWidget);
+      expect(find.text('計画内の予定費'), findsNothing);
+      expect(find.text('保有目標より先の予定です'), findsOneWidget);
+      expect(find.text('予定年月が過ぎています'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '予定費を追加'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, '編集'), findsNWidgets(2));
+    },
+  );
+
+  testWidgets('empty, outside-only and included zero are distinct', (
+    tester,
+  ) async {
+    await pumpExpenses(tester, []);
+    expect(summary(tester), '0円');
+    expect(find.text('計画外の予定費：0件'), findsOneWidget);
+    expect(find.text('予定費はまだありません'), findsOneWidget);
+    expect(find.text('計画外の予定費'), findsNothing);
+    await pumpExpenses(tester, [expense('過去無料', 2026, 8, 0)]);
+    expect(summary(tester), '0円');
+    expect(find.text('計画外の予定費：1件'), findsOneWidget);
+    expect(find.text('保有目標までの予定費はありません'), findsOneWidget);
+    expect(find.text('予定費はまだありません'), findsNothing);
+    await pumpExpenses(tester, [expense('無料予定', 2026, 9, 0)]);
+    expect(summary(tester), '0円');
+    expect(find.text('無料予定'), findsOneWidget);
+    expect(find.text('合計 0円'), findsOneWidget);
+    expect(find.text('計画外の予定費：0件'), findsOneWidget);
+    expect(find.text('保有目標までの予定費はありません'), findsNothing);
+    expect(find.text('予定費はまだありません'), findsNothing);
+  });
+
+  testWidgets(
+    'identical outside expenses retain distinct IDs and same-month original order',
+    (tester) async {
+      final input = [
+        expense('後の月', 2042, 1, 50),
+        expense('同じ対象外', 2041, 1, 10),
+        expense('同月途中', 2041, 1, 20),
+        expense('同じ対象外', 2041, 1, 10),
+      ];
+      await pumpExpenses(tester, input);
+      expect(find.text('同じ対象外'), findsNWidgets(2));
+      expect(find.text('計画外の予定費：4件'), findsOneWidget);
+      final ordered = [input[1], input[2], input[3], input[0]];
+      for (var i = 1; i < ordered.length; i++) {
+        expect(
+          tester
+              .getTopLeft(find.byKey(ValueKey('expense-${ordered[i - 1].id}')))
+              .dy,
+          lessThan(
+            tester
+                .getTopLeft(find.byKey(ValueKey('expense-${ordered[i].id}')))
+                .dy,
+          ),
+        );
+      }
+      for (final item in input) {
+        expect(find.byKey(ValueKey('edit-expense-${item.id}')), findsOneWidget);
+      }
+    },
+  );
+
+  testWidgets(
+    '320px scale 3: summary, full rows, reasons and edit are readable and reachable',
+    (tester) async {
+      final input = [
+        expense('車' * 40, 2026, 9, 1000000000),
+        expense('外' * 40, 2026, 8, 1000000000),
+        expense('目標より先', 2040, 5, 0),
+      ];
+      await pumpExpenses(tester, input, width: 320, scale: 3);
+      for (final finder in [
+        find.byKey(const ValueKey('included-expenses-total')),
+        find.text('計画外の予定費：2件'),
+        find.text('合計 1,000,000,000円'),
+        find.text('予定年月が過ぎています'),
+        find.text('保有目標より先の予定です'),
+        for (final item in input) ...[
+          find.text(item.name),
+          find.descendant(
+            of: find.byKey(ValueKey('expense-${item.id}')),
+            matching: find.text(
+              '${item.plannedMonth.year}年${item.plannedMonth.month}月',
+            ),
+          ),
+          find.descendant(
+            of: find.byKey(ValueKey('expense-${item.id}')),
+            matching: find.text(item.amountYen == 0 ? '0円' : '1,000,000,000円'),
+          ),
+          find.byKey(ValueKey('edit-expense-${item.id}')),
+        ],
+      ]) {
+        await tester.ensureVisible(finder);
+        await tester.pumpAndSettle();
+        expect(finder.hitTestable(), findsOneWidget);
+        expectSafeLayout(tester);
+      }
+      await tester.tap(find.byKey(ValueKey('edit-expense-${input.last.id}')));
+      await tester.pumpAndSettle();
+      expect(find.text('予定費を編集'), findsWidgets);
+    },
+  );
   testWidgets(
     'Golden Sample: all six rows, year headers and totals via scroll',
     (tester) async {
@@ -215,7 +379,21 @@ void main() {
     tester,
   ) async {
     const name = '長期間乗り続ける愛車のエンジンとトランスミッションの大規模整備予定';
-    await pumpExpenses(tester, [expense(name, 2027, 4, 3000000)], scale: 3);
+    final item = expense(name, 2027, 4, 3000000);
+    await pumpExpenses(tester, [item], scale: 3);
+    final rowAmount = find.descendant(
+      of: find.byKey(ValueKey('expense-${item.id}')),
+      matching: find.text('3,000,000円'),
+    );
+    final total = find.byKey(const ValueKey('included-expenses-total'));
+    expect(total, findsOneWidget);
+    expect(tester.widget<Text>(total).data, '3,000,000円');
+    await tester.ensureVisible(total);
+    await tester.pumpAndSettle();
+    expectSafeLayout(tester);
+    final totalText = tester.widget<Text>(total);
+    expect(totalText.maxLines, isNull);
+    expect(totalText.overflow, isNot(TextOverflow.ellipsis));
     for (final label in [
       '2027年',
       '合計 3,000,000円',
@@ -223,11 +401,12 @@ void main() {
       '2027年4月',
       '3,000,000円',
     ]) {
-      expect(find.text(label), findsOneWidget);
-      await tester.ensureVisible(find.text(label));
+      final finder = label == '3,000,000円' ? rowAmount : find.text(label);
+      expect(finder, findsOneWidget);
+      await tester.ensureVisible(finder);
       await tester.pumpAndSettle();
       expectSafeLayout(tester);
-      final widget = tester.widget<Text>(find.text(label));
+      final widget = tester.widget<Text>(finder);
       expect(widget.maxLines, isNull);
       expect(widget.overflow, isNot(TextOverflow.ellipsis));
     }
@@ -240,7 +419,7 @@ void main() {
     );
     expect(boxes.map((box) => box.top).toSet().length, greaterThan(1));
     expect(
-      tester.getTopLeft(find.text('3,000,000円')).dy,
+      tester.getTopLeft(rowAmount).dy,
       greaterThan(tester.getTopLeft(find.text('2027年4月')).dy),
     );
   });

@@ -138,6 +138,13 @@ void main() {
         find.byKey(const ValueKey('confirm-delete-expense')),
       );
       expect(plan.plannedExpenses, isEmpty);
+      expect(find.text('計画外の予定費：0件'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('included-expenses-total')))
+            .data,
+        '0円',
+      );
       expect(find.text('予定費を削除しました'), findsOneWidget);
       safeLayout(tester);
       await tester.pump(const Duration(seconds: 5));
@@ -171,13 +178,27 @@ void main() {
       await pumpApp(tester, plan);
       await openList(tester);
       expect(find.text('合計 100円'), findsOneWidget);
-      expect(find.text('現在の保有期間外'), findsOneWidget);
+      expect(find.text('計画外の予定費：1件'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('included-expenses-total')))
+            .data,
+        '100円',
+      );
+      expect(find.text('保有目標より先の予定です'), findsOneWidget);
       expect(find.text('現在の試算対象なし'), findsNothing);
       await back(tester);
       plan.apply(conditions());
       await openList(tester);
       expect(find.text('合計 300円'), findsOneWidget);
-      expect(find.text('現在の保有期間外'), findsNothing);
+      expect(find.text('計画外の予定費：0件'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('included-expenses-total')))
+            .data,
+        '300円',
+      );
+      expect(find.text('保有目標より先の予定です'), findsNothing);
     },
   );
 
@@ -339,7 +360,7 @@ void main() {
 
   for (final scale in [1.0, 3.0]) {
     testWidgets(
-      '360px scale $scale: outside rows, no-target year, zero year, editor, keyboard and notices',
+      '360px scale $scale: outside rows and count, zero-cost year, editor, keyboard and notices',
       (tester) async {
         final plan = session(expenses: []);
         plan.saveExpense(
@@ -357,8 +378,8 @@ void main() {
         await pumpApp(tester, plan, scale: scale);
         await openList(tester);
         for (final label in [
-          '現在の保有期間外',
-          '現在の試算対象なし',
+          '保有目標より先の予定です',
+          '計画外の予定費：1件',
           '合計 0円',
           '1,000,000,000円',
         ]) {
@@ -390,7 +411,7 @@ void main() {
         await tapVisible(tester, find.byKey(const ValueKey('expense-month-9')));
         await save(tester);
         expect(plan.plannedExpenses.first.id, outsideId);
-        expect(find.text('現在の保有期間外'), findsNothing);
+        expect(find.text('保有目標より先の予定です'), findsNothing);
         expect(find.text('予定費を更新しました'), findsOneWidget);
         safeLayout(tester);
         await tester.pump(const Duration(seconds: 5));
