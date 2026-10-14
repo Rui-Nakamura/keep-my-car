@@ -14,6 +14,7 @@ import '../persistence/local_file_storage.dart';
 import 'persistent_plan_state.dart';
 import 'screen_success_feedback.dart';
 import 'save_request.dart';
+import 'save_restriction.dart';
 import 'theme/app_theme.dart';
 
 class KeepMyCarApp extends StatefulWidget {
@@ -61,6 +62,9 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
 
   void changed() {
     if (!mounted) return;
+    if (state.versionProtection != null) {
+      navigator.currentState?.popUntil((route) => route.isFirst);
+    }
     if (state.phase != previous &&
         (state.phase == StartupPhase.uncertain ||
             state.phase == StartupPhase.loading)) {
@@ -108,7 +112,7 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
       switch (result.importIssue) {
         BackupImportIssue.notBackup => 'このファイルはKeep My Carのバックアップではありません',
         BackupImportIssue.unsupportedVersion =>
-          'このバックアップは新しいバージョンで作成されているため、このアプリでは読み込めません',
+          'このバックアップは新しいバージョンで作成されています。アプリを更新してください。',
         BackupImportIssue.invalidStructure ||
         BackupImportIssue.invalidContent => 'バックアップファイルを読み込めませんでした',
         null =>
@@ -274,50 +278,60 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
       ),
     ),
   );
-  Widget home() => switch (state.phase) {
-    StartupPhase.loading => message('データを読み込んでいます…', ''),
-    StartupPhase.noData =>
-      settingUp
-          ? InitialSetupScreen(
-              referenceMonth: state.referenceMonth,
-              onSave:
-                  ({
-                    required ownerBirthMonth,
-                    required car,
-                    required conditions,
-                  }) => state.initialize((
-                    ownerBirthMonth: ownerBirthMonth,
-                    car: car,
-                    planConditions: conditions,
-                    plannedExpenses: [],
-                  )),
-            )
-          : DataManagementScreen(onRestore: restore, onStartNew: startNew),
-    StartupPhase.failure => DataManagementScreen(
-      failure: true,
-      onRestore: restore,
-      onStartNew: startNew,
-      onReload: state.load,
-    ),
-    StartupPhase.uncertain => message(
-      '保存状態を確認できませんでした',
-      '保存中に問題が発生したため、実際に保存されているデータを確認する必要があります。',
-      button: '保存状態を確認する',
-    ),
-    StartupPhase.ready || StartupPhase.recovered => HomeScreen(
-      car: state.car!,
-      onDataManagement: openDataManagement,
-      session: state.session!,
-      onSaveCarName: state.saveCarName,
-      onApply: state.apply,
-      onSaveExpense: state.saveExpense,
-      onDeleteExpense: state.deleteExpense,
-      onNavigate: () => setState(state.session!.consumeHomeUpdate),
-      onTimelineViewed: () => setState(state.session!.acknowledgeTimeline),
-      onReserveViewed: () => setState(state.session!.acknowledgeReserve),
-      onExpensesChanged: () => setState(() {}),
-    ),
-  };
+  Widget home() => state.versionProtection != null
+      ? message(
+          'アプリの更新が必要です',
+          '保存されているデータは、現在のアプリでは読み込めません。データを守るため、アプリを更新してください。\nデータは削除されていません。',
+        )
+      : switch (state.phase) {
+          StartupPhase.loading => message('データを読み込んでいます…', ''),
+          StartupPhase.noData =>
+            settingUp
+                ? InitialSetupScreen(
+                    referenceMonth: state.referenceMonth,
+                    onSave:
+                        ({
+                          required ownerBirthMonth,
+                          required car,
+                          required conditions,
+                        }) => state.initialize((
+                          ownerBirthMonth: ownerBirthMonth,
+                          car: car,
+                          planConditions: conditions,
+                          plannedExpenses: [],
+                        )),
+                  )
+                : DataManagementScreen(
+                    onRestore: restore,
+                    onStartNew: startNew,
+                  ),
+          StartupPhase.failure => DataManagementScreen(
+            failure: true,
+            onRestore: restore,
+            onStartNew: startNew,
+            onReload: state.load,
+          ),
+          StartupPhase.uncertain => message(
+            '保存状態を確認できませんでした',
+            '保存中に問題が発生したため、実際に保存されているデータを確認する必要があります。',
+            button: '保存状態を確認する',
+          ),
+          StartupPhase.ready || StartupPhase.recovered => HomeScreen(
+            car: state.car!,
+            onDataManagement: openDataManagement,
+            session: state.session!,
+            onSaveCarName: state.saveCarName,
+            onApply: state.applyBasic,
+            onApplyFunding: state.applyFunding,
+            onSaveExpense: state.saveExpense,
+            onDeleteExpense: state.deleteExpense,
+            onNavigate: () => setState(state.session!.consumeHomeUpdate),
+            onTimelineViewed: () =>
+                setState(state.session!.acknowledgeTimeline),
+            onReserveViewed: () => setState(state.session!.acknowledgeReserve),
+            onExpensesChanged: () => setState(() {}),
+          ),
+        };
   @override
   void dispose() {
     state.removeListener(changed);
@@ -334,6 +348,33 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     theme: AppTheme.light,
     themeMode: ThemeMode.light,
+    builder: (context, child) => SaveRestriction(
+      restricted: state.saveRestricted,
+      child: Column(
+        children: [
+          if (state.unsupportedBackupVersion != null &&
+              state.versionProtection == null)
+            Material(
+              child: SafeArea(
+                bottom: false,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.35,
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(saveRestrictionMessage),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Expanded(child: child!),
+        ],
+      ),
+    ),
     home: ScreenSuccessFeedback(
       notificationId: successNotificationId,
       child: home(),

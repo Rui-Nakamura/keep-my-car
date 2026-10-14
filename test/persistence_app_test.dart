@@ -29,7 +29,6 @@ Future<void> fillSetup(WidgetTester tester) async {
     'mileage': '45000',
     'annual': '4000',
     'ownership': '70',
-    'reserveAge': '65',
   }.entries) {
     final input = find.byKey(ValueKey('setup-${entry.key}'));
     await tester.ensureVisible(input);
@@ -171,16 +170,12 @@ void main() {
           .text,
       '2026-09',
     );
-    for (final key in ['fund', 'reserve']) {
-      expect(
-        tester
-            .widget<TextField>(find.byKey(ValueKey('setup-$key')))
-            .controller!
-            .text,
-        '0',
-      );
+    for (final key in ['fund', 'reserve', 'reserveAge']) {
+      expect(find.byKey(ValueKey('setup-$key')), findsNothing);
     }
-    for (final key in ['ownership', 'reserveAge']) {
+    expect(find.byType(TextField), findsNWidgets(7));
+    expect(find.textContaining('資金計画'), findsNothing);
+    for (final key in ['ownership']) {
       expect(
         tester
             .widget<TextField>(find.byKey(ValueKey('setup-$key')))
@@ -210,6 +205,8 @@ void main() {
         expect(data.ownerBirthMonth, const YearMonth(1970, 4));
         expect(data.car.name, '私の愛車');
         expect(data.plannedExpenses, isEmpty);
+        expect(data.planConditions.fundingPlanEnabled, false);
+        expect(data.planConditions.reserveTargetAge, 0);
         expect(data.planConditions.currentCarFundYen, 0);
         expect(data.planConditions.largeRepairReserveYen, 0);
         pending.complete(success ? const Saved() : saveFailure());
@@ -239,11 +236,11 @@ void main() {
     expect(repo.saves, isEmpty);
     await fillSetup(tester);
     await tester.enterText(
-      find.byKey(const ValueKey('setup-reserveAge')),
-      '71',
+      find.byKey(const ValueKey('setup-ownership')),
+      '101',
     );
     await tapVisible(tester, find.byKey(const ValueKey('setup-save')));
-    expect(find.text('備え目標年齢は保有目標年齢以下にしてください。'), findsOneWidget);
+    expect(find.text('現在年齢以上、100歳以下の年齢を入力してください。'), findsOneWidget);
     expect(repo.saves, isEmpty);
   });
 
@@ -369,7 +366,9 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await boot(tester, TestRepository(const NoData()));
       await fillSetup(tester);
-      final field = find.byKey(const ValueKey('setup-reserveAge'));
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+      final field = find.byKey(const ValueKey('setup-ownership'));
       await tester.ensureVisible(field);
       await tester.pumpAndSettle();
       expect(tester.getRect(field).bottom, lessThanOrEqualTo(500));

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../app/save_request.dart';
+import '../../../app/save_restriction.dart';
 import '../../../app/save_progress.dart';
 
 import '../../../app/theme/app_spacing.dart';
@@ -19,8 +20,12 @@ class PlanSettingsScreen extends StatefulWidget {
     required this.referenceMonth,
     required this.onApply,
     this.onDataManagement,
+    this.onFundingPlan,
+    this.fundingStatusText,
   });
   final PlanConditions conditions;
+  final Future<void> Function()? onFundingPlan;
+  final String Function()? fundingStatusText;
   final VoidCallback? onDataManagement;
   final YearMonth birthMonth;
   final YearMonth referenceMonth;
@@ -36,7 +41,7 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
   final _focus = <PlanField, FocusNode>{};
   final _errors = <PlanField, String>{};
   late int _ownershipAge;
-  late int _reserveAge;
+
   bool _saving = false;
   String? _saveError;
 
@@ -45,12 +50,10 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
     super.initState();
     final initial = widget.conditions;
     _ownershipAge = initial.ownershipTargetAge;
-    _reserveAge = initial.reserveTargetAge;
+
     final values = {
       PlanField.currentMileage: initial.currentMileageKm,
       PlanField.annualMileage: initial.annualMileageKm,
-      PlanField.fund: initial.currentCarFundYen,
-      PlanField.reserve: initial.largeRepairReserveYen,
     };
     for (final entry in values.entries) {
       final controller = TextEditingController(text: formatNumber(entry.value));
@@ -90,13 +93,9 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
         _parse(_controllers[PlanField.annualMileage]!.text) ??
         widget.conditions.annualMileageKm,
     ownershipTargetAge: _ownershipAge,
-    currentCarFundYen:
-        _parse(_controllers[PlanField.fund]!.text) ??
-        widget.conditions.currentCarFundYen,
-    reserveTargetAge: _reserveAge,
-    largeRepairReserveYen:
-        _parse(_controllers[PlanField.reserve]!.text) ??
-        widget.conditions.largeRepairReserveYen,
+    currentCarFundYen: widget.conditions.currentCarFundYen,
+    reserveTargetAge: widget.conditions.reserveTargetAge,
+    largeRepairReserveYen: widget.conditions.largeRepairReserveYen,
   );
 
   String _domainMessage(PlanField field, PlanInputError error) {
@@ -116,7 +115,7 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
   }
 
   Map<PlanField, String> _validate() {
-    final errors = validatePlanConditions(
+    final errors = validateBasicPlanConditions(
       _candidate(),
       birthMonth: widget.birthMonth,
       referenceMonth: widget.referenceMonth,
@@ -132,7 +131,7 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
   }
 
   Future<void> _apply() async {
-    if (_saving) return;
+    if (_saving || SaveRestriction.of(context)) return;
     FocusScope.of(context).unfocus();
     final errors = _validate();
     setState(() {
@@ -168,23 +167,14 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
     }
   }
 
-  Future<void> _chooseAge(bool ownership) async {
+  Future<void> _chooseAge() async {
     FocusScope.of(context).unfocus();
     final minimum = completedYears(widget.birthMonth, widget.referenceMonth);
-    final ages = [
-      for (var age = minimum; age <= (ownership ? 100 : _ownershipAge); age++)
-        if (ownership ||
-            reserveMonth(
-                  widget.birthMonth,
-                  age,
-                ).compareTo(widget.referenceMonth) >=
-                0)
-          age,
-    ];
+    final ages = [for (var age = minimum; age <= 100; age++) age];
     final selected = await showDialog<int>(
       context: context,
       builder: (context) => SimpleDialog(
-        title: Text(ownership ? '保有目標年齢' : '大型修理への備え目標年齢'),
+        title: const Text('保有目標年齢'),
         children: [
           if (ages.isEmpty)
             const Padding(
@@ -202,17 +192,60 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
     );
     if (!mounted || selected == null) return;
     setState(() {
-      if (ownership) {
-        _ownershipAge = selected;
-      } else {
-        _reserveAge = selected;
-      }
+      _ownershipAge = selected;
       final errors = _validate();
-      for (final field in [PlanField.ownershipAge, PlanField.reserveAge]) {
+      for (final field in [PlanField.ownershipAge]) {
         _errors.remove(field);
         if (errors[field] case final error?) _errors[field] = error;
       }
     });
+  }
+
+  Future<void> _openFunding() async {
+    if (_saving) return;
+    FocusScope.of(context).unfocus();
+    final dirty =
+        _controllers.entries.any(
+          (entry) =>
+              _parse(entry.value.text) !=
+              (entry.key == PlanField.currentMileage
+                  ? widget.conditions.currentMileageKm
+                  : widget.conditions.annualMileageKm),
+        ) ||
+        _ownershipAge != widget.conditions.ownershipTargetAge;
+    if (dirty) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          scrollable: true,
+          title: const Text('変更を破棄して移動しますか？'),
+          content: const Text('基本計画の未保存の変更は保存されません。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('キャンセル'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('変更を破棄して移動'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || discard != true) return;
+      setState(() {
+        _controllers[PlanField.currentMileage]!.text = formatNumber(
+          widget.conditions.currentMileageKm,
+        );
+        _controllers[PlanField.annualMileage]!.text = formatNumber(
+          widget.conditions.annualMileageKm,
+        );
+        _ownershipAge = widget.conditions.ownershipTargetAge;
+        _errors.clear();
+      });
+    }
+    await widget.onFundingPlan!();
+    if (mounted) setState(() {});
   }
 
   Widget _error(PlanField field) => _errors[field] == null
@@ -253,22 +286,19 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
     ),
   );
 
-  Widget _age(bool ownership) {
-    final field = ownership ? PlanField.ownershipAge : PlanField.reserveAge;
+  Widget _age() {
+    const field = PlanField.ownershipAge;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            ownership ? '保有目標年齢' : '大型修理への備え目標年齢',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('保有目標年齢', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSpacing.sm),
           OutlinedButton(
             key: ValueKey('input-${field.name}'),
-            onPressed: () => _chooseAge(ownership),
-            child: Text('${ownership ? _ownershipAge : _reserveAge}歳'),
+            onPressed: _chooseAge,
+            child: Text('$_ownershipAge歳'),
           ),
           _error(field),
         ],
@@ -305,19 +335,25 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
               const SizedBox(height: AppSpacing.xl),
               _number(PlanField.currentMileage, '現在走行距離', 'km'),
               _number(PlanField.annualMileage, '年間走行距離', 'km / 年'),
-              _age(true),
-              Text('資金計画', style: Theme.of(context).textTheme.headlineLarge),
-              const SizedBox(height: AppSpacing.xl),
-              _number(PlanField.fund, '現在の愛車専用資金', '円'),
-              _age(false),
-              _number(PlanField.reserve, '大型修理予備費', '円'),
+              _age(),
               if (_saveError != null)
                 Text(_saveError!, key: const ValueKey('save-error')),
               FilledButton(
                 key: const ValueKey('apply-plan'),
-                onPressed: _saving ? null : _apply,
+                onPressed: _saving || SaveRestriction.of(context)
+                    ? null
+                    : _apply,
                 child: Text(_saving ? '保存中…' : 'この試算に反映'),
               ),
+              if (widget.onFundingPlan != null) ...[
+                const SizedBox(height: AppSpacing.xl),
+                Text(widget.fundingStatusText?.call() ?? ''),
+                OutlinedButton(
+                  key: const ValueKey('open-funding-plan'),
+                  onPressed: _saving ? null : _openFunding,
+                  child: const Text('資金計画（任意）'),
+                ),
+              ],
               if (widget.onDataManagement != null) ...[
                 const SizedBox(height: AppSpacing.xl),
                 OutlinedButton(

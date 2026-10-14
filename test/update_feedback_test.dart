@@ -219,13 +219,12 @@ void main() {
       );
       await tester.pumpWidget(testApp(session: plan));
       await tester.pumpAndSettle();
+      plan.applyFunding(conditions(reserve: 3000000));
       await openSettings(tester);
       calls.reset();
       await enter(tester, 'annualMileage', '6000');
-      await enter(tester, 'fund', '1000000');
-      await enter(tester, 'reserve', '3000000');
       await apply(tester);
-      expect((calls.timeline, calls.reserve), (1, 1));
+      expect((calls.timeline, calls.reserve), (1, 0));
       expect(find.text('未来タイムラインを更新しました'), findsOneWidget);
       final savedDelta = plan.reserveDeltaYen;
       calls.reset();
@@ -324,7 +323,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('reserve-delta')), findsNothing);
       if (result is RepairReserveFailure) {
-        expect(find.text('計算できません'), findsOneWidget);
+        expect(find.text('現在の条件では計算できません'), findsOneWidget);
         expect(find.text('大型修理込み'), findsNothing);
       }
     }

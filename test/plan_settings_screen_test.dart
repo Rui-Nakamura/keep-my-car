@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'persistence_app_support.dart';
 
-import 'package:keep_my_car/domain/plan_conditions_validation.dart';
+import 'package:keep_my_car/app/plan_session.dart';
 
 import 'plan_test_support.dart';
 
@@ -28,7 +28,7 @@ Future<void> apply(WidgetTester tester) async {
 
 void main() {
   testWidgets(
-    'draft is separate, Back discards, valid six-field set returns Home',
+    'draft is separate, Back discards, valid basic set returns Home and retains funding',
     (tester) async {
       final plan = session();
       await tester.pumpWidget(testApp(session: plan));
@@ -52,33 +52,16 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('age-option-80')));
       await tester.tap(find.byKey(const ValueKey('age-option-80')));
       await tester.pumpAndSettle();
-      await enter(tester, 'fund', '1000000');
-      await tester.ensureVisible(input('reserveAge'));
-      await tester.tap(input('reserveAge'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('age-option-56')), findsNothing);
-      expect(find.byKey(const ValueKey('age-option-57')), findsOneWidget);
-      await tester.ensureVisible(find.byKey(const ValueKey('age-option-66')));
-      await tester.tap(find.byKey(const ValueKey('age-option-66')));
-      await tester.pumpAndSettle();
-      await enter(tester, 'reserve', '3000000');
       await apply(tester);
       expect(
         plan.conditions,
-        conditions(
-          mileage: 50000,
-          annual: 6000,
-          ownership: 80,
-          fund: 1000000,
-          age: 66,
-          reserve: 3000000,
-        ),
+        conditions(mileage: 50000, annual: 6000, ownership: 80),
       );
       expect(find.text('80歳まで乗る計画'), findsOneWidget);
       expect(find.text('66歳までに大型修理用として3,000,000円を備える'), findsNothing);
       expect(find.byKey(const ValueKey('home-update')), findsOneWidget);
       expect(plan.timelinePending, isTrue);
-      expect(plan.reservePending, isTrue);
+      expect(plan.reservePending, isFalse);
     },
   );
 
@@ -96,32 +79,24 @@ void main() {
         '1.5',
         'abc',
         '1,2',
-        '1000000001',
+        '2000001',
         '999999999999999999999999999999',
       ]) {
-        await enter(tester, 'fund', invalid);
+        await enter(tester, 'currentMileage', invalid);
         await apply(tester);
         expect(
-          find.byKey(const ValueKey('error-fund')),
+          find.byKey(const ValueKey('error-currentMileage')),
           findsOneWidget,
           reason: invalid,
         );
         expect(plan.conditions, conditions());
         expect(plan.timelinePending, isFalse);
       }
-      for (final field in [
-        'currentMileage',
-        'annualMileage',
-        'fund',
-        'reserve',
-      ]) {
+      for (final field in ['currentMileage', 'annualMileage']) {
         await enter(tester, field, '0');
       }
       await apply(tester);
-      expect(
-        plan.conditions,
-        conditions(mileage: 0, annual: 0, fund: 0, reserve: 0),
-      );
+      expect(plan.conditions, conditions(mileage: 0, annual: 0));
       expect(find.text('70歳まで乗る計画'), findsOneWidget);
     },
   );
@@ -156,7 +131,7 @@ void main() {
   );
 
   testWidgets(
-    'lower ownership retains invalid reserve draft and blocks apply',
+    'lower ownership saves independently and retains funding values',
     (tester) async {
       final plan = session();
       await tester.pumpWidget(testApp(session: plan));
@@ -168,21 +143,10 @@ void main() {
       await tester.ensureVisible(find.byKey(const ValueKey('age-option-60')));
       await tester.tap(find.byKey(const ValueKey('age-option-60')));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(OutlinedButton, '65歳'), findsOneWidget);
-      expect(
-        find.byKey(ValueKey('error-${PlanField.reserveAge.name}')),
-        findsOneWidget,
-      );
+      expect(input('reserveAge'), findsNothing);
       await apply(tester);
-      expect(plan.conditions, conditions());
-      await tester.ensureVisible(input('reserveAge'));
-      await tester.tap(input('reserveAge'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('age-option-65')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('age-option-60')));
-      await tester.pumpAndSettle();
-      await apply(tester);
-      expect(plan.conditions, conditions(ownership: 60, age: 60));
+      expect(plan.conditions, conditions(ownership: 60));
+      expect(plan.fundingPlanStatus, FundingPlanStatus.needsReview);
       expect(tester.takeException(), isNull);
     },
   );
@@ -215,30 +179,25 @@ void main() {
       );
       await tester.pumpAndSettle();
       await openSettings(tester);
-      for (final field in [
-        'currentMileage',
-        'annualMileage',
-        'fund',
-        'reserve',
-      ]) {
+      for (final field in ['currentMileage', 'annualMileage']) {
         await tester.ensureVisible(input(field));
         await tester.pumpAndSettle();
         final widget = tester.widget<TextField>(input(field));
         expect(widget.maxLines, isNull);
         expect(tester.takeException(), isNull);
       }
-      await enter(tester, 'reserve', '1000000001');
+      await enter(tester, 'currentMileage', '2000001');
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
       await tester.pump();
       await apply(tester);
-      final error = find.byKey(const ValueKey('error-reserve'));
+      final error = find.byKey(const ValueKey('error-currentMileage'));
       await tester.ensureVisible(error);
       await tester.pumpAndSettle();
       final rect = tester.getRect(error);
       expect(rect.left, greaterThanOrEqualTo(0));
       expect(rect.right, lessThanOrEqualTo(360));
       expect(tester.takeException(), isNull);
-      await enter(tester, 'reserve', '1000000000');
+      await enter(tester, 'currentMileage', '2000000');
       await apply(tester);
       expect(find.text('70歳まで乗る計画'), findsOneWidget);
       expect(tester.takeException(), isNull);

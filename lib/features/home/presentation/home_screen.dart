@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../../app/display_format.dart';
 import '../../../app/plan_session.dart';
 import '../../../app/save_request.dart';
+import '../../../app/save_restriction.dart';
+import '../../settings/presentation/funding_plan_screen.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../domain/car_validation.dart';
 import '../../../domain/models/car.dart';
@@ -30,7 +32,10 @@ class HomeScreen extends StatelessWidget {
     required this.onSaveExpense,
     required this.onDeleteExpense,
     this.onDataManagement,
+    this.onApplyFunding,
   });
+  final FutureOr<Map<PlanField, PlanInputError>> Function(PlanConditions)?
+  onApplyFunding;
   final PlanSession session;
   final VoidCallback? onDataManagement;
   final Car car;
@@ -70,8 +75,22 @@ class HomeScreen extends StatelessWidget {
       referenceMonth: session.referenceMonth,
       onApply: onApply,
       onDataManagement: onDataManagement,
+      fundingStatusText: () => fundingStatusText(session.fundingPlanStatus),
+      onFundingPlan: onApplyFunding == null ? null : () => _funding(context),
     ),
   );
+
+  Future<void> _funding(BuildContext context) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => FundingPlanScreen(
+          session: session,
+          onApply: onApplyFunding!,
+          onViewed: onReserveViewed,
+        ),
+      ),
+    );
+  }
 
   Future<void> _reviewTarget(BuildContext context) async {
     var applied = false;
@@ -87,6 +106,10 @@ class HomeScreen extends StatelessWidget {
             return errors;
           },
           onDataManagement: onDataManagement,
+          fundingStatusText: () => fundingStatusText(session.fundingPlanStatus),
+          onFundingPlan: onApplyFunding == null
+              ? null
+              : () => _funding(context),
         ),
       ),
     );
@@ -160,7 +183,9 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               Text(car.name, style: text.titleLarge),
               TextButton(
-                onPressed: () => _editCarName(context),
+                onPressed: SaveRestriction.of(context)
+                    ? null
+                    : () => _editCarName(context),
                 child: const Text('愛車名を編集'),
               ),
               OutlinedButton(
@@ -278,6 +303,16 @@ class HomeScreen extends StatelessWidget {
                   context,
                   FutureTimelineScreen(
                     years: session.timeline,
+                    fundingTargetMonth:
+                        session.fundingPlanStatus ==
+                            FundingPlanStatus.calculable
+                        ? reserveMonth(
+                            session.birthMonth,
+                            session.conditions.reserveTargetAge,
+                          )
+                        : null,
+                    fundingTargetAge: session.conditions.reserveTargetAge,
+                    fundingTargetYen: session.conditions.largeRepairReserveYen,
                     referenceMonth: session.referenceMonth,
                     ownershipTargetMonth: session.ownershipTargetMonth,
                     ownershipTargetAge: session.conditions.ownershipTargetAge,
@@ -293,7 +328,9 @@ class HomeScreen extends StatelessWidget {
               if (!reached) ...[
                 const SizedBox(height: AppSpacing.lg),
                 OutlinedButton(
-                  onPressed: () => _addExpense(context),
+                  onPressed: SaveRestriction.of(context)
+                      ? null
+                      : () => _addExpense(context),
                   child: const Text('＋ 予定費を追加'),
                 ),
               ],

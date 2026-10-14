@@ -29,24 +29,17 @@ class InitialSetupScreen extends StatefulWidget {
 class _InitialSetupScreenState extends State<InitialSetupScreen> {
   static const labels = {
     'birth': '生年月',
-    'name': '愛車名',
+    'name': '車名',
     'registration': '初度登録年月',
-    'mileage': '現在走行距離（km）',
+    'mileage': '現在の走行距離（km）',
     'checked': '走行距離確認年月',
     'annual': '年間走行距離（km）',
     'ownership': '保有目標年齢（歳）',
-    'fund': '現在の愛車専用資金（円）',
-    'reserveAge': '大型修理への備え目標年齢（歳）',
-    'reserve': '大型修理予備費（円）',
   };
   late final controllers = {
     for (final key in labels.keys)
       key: TextEditingController(
-        text: key == 'checked'
-            ? widget.referenceMonth.toString()
-            : key == 'fund' || key == 'reserve'
-            ? '0'
-            : '',
+        text: key == 'checked' ? widget.referenceMonth.toString() : '',
       ),
   };
   final errors = <String, String>{};
@@ -82,9 +75,6 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
       'mileage': PlanField.currentMileage,
       'annual': PlanField.annualMileage,
       'ownership': PlanField.ownershipAge,
-      'fund': PlanField.fund,
-      'reserveAge': PlanField.reserveAge,
-      'reserve': PlanField.reserve,
     };
     for (final key in fields.keys) {
       if (number(key) == null) errors[key] = '0以上の整数を入力してください。';
@@ -92,18 +82,12 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
     PlanConditions? plan;
     if (month('birth') != null &&
         fields.keys.every((key) => number(key) != null)) {
-      plan = PlanConditions(
-        // E-1 compatibility: this legacy flow explicitly collects funding inputs.
-        // E-2 will use newBasicPlanConditions with seven basic inputs instead.
-        fundingPlanEnabled: true,
+      plan = newBasicPlanConditions(
         currentMileageKm: number('mileage')!,
         annualMileageKm: number('annual')!,
         ownershipTargetAge: number('ownership')!,
-        currentCarFundYen: number('fund')!,
-        reserveTargetAge: number('reserveAge')!,
-        largeRepairReserveYen: number('reserve')!,
       );
-      final rejected = validatePlanConditions(
+      final rejected = validateBasicPlanConditions(
         plan,
         birthMonth: month('birth')!,
         referenceMonth: widget.referenceMonth,
@@ -211,7 +195,7 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
                   'checked',
                   'annual',
                 ],
-                'これからの計画': ['ownership', 'fund', 'reserveAge', 'reserve'],
+                'これからの計画': ['ownership'],
               }.entries) ...[
                 Text(
                   section.key,

@@ -199,11 +199,11 @@ void main() {
       await settings.openSettings(tester);
       await settings.enter(tester, 'currentMileage', '50000');
       await settings.enter(tester, 'annualMileage', '6000');
-      await settings.enter(tester, 'fund', '-1');
+      await settings.enter(tester, 'annualMileage', '-1');
       await settings.apply(tester);
       expect(home(tester).car.currentMileageKm, 45000);
       expect(home(tester).car.annualMileageKm, 4000);
-      await settings.enter(tester, 'fund', '500000');
+      await settings.enter(tester, 'annualMileage', '6000');
       await settings.apply(tester);
       final car = home(tester).car;
       expect(car.name, '新しい名前');

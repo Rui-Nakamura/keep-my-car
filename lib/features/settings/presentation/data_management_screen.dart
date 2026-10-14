@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/save_progress.dart';
+import '../../../app/save_restriction.dart';
 import '../../../app/theme/app_spacing.dart';
 
 /// Presentation only: file transport, validation and persistence stay outside.
@@ -63,7 +64,9 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
               if (widget.onStartNew != null && !widget.failure) ...[
                 const SizedBox(height: AppSpacing.xl),
                 FilledButton(
-                  onPressed: busy ? null : () => run(widget.onStartNew!),
+                  onPressed: busy || SaveRestriction.of(context)
+                      ? null
+                      : () => run(widget.onStartNew!),
                   child: const Text('新しく設定する'),
                 ),
               ],
@@ -73,24 +76,34 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                   onPressed: busy ? null : () => run(widget.onExport!),
                   child: const Text('データを書き出す'),
                 ),
-                const Text('現在のデータをバックアップファイルとして保存します'),
+                Text(
+                  SaveRestriction.of(context)
+                      ? '現在このアプリで表示できるデータを書き出します。新しいバージョンのアプリで作られた、読み込めないデータは含まれません。書き出した後も、変更を保存するにはアプリの更新が必要です。'
+                      : '現在のデータをバックアップファイルとして保存します',
+                ),
               ],
               const SizedBox(height: AppSpacing.xl),
               if (widget.failure)
                 FilledButton(
-                  onPressed: busy ? null : () => run(widget.onRestore),
+                  onPressed: busy || SaveRestriction.of(context)
+                      ? null
+                      : () => run(widget.onRestore),
                   child: const Text('バックアップから復元する'),
                 )
               else
                 OutlinedButton(
-                  onPressed: busy ? null : () => run(widget.onRestore),
+                  onPressed: busy || SaveRestriction.of(context)
+                      ? null
+                      : () => run(widget.onRestore),
                   child: const Text('バックアップから復元する'),
                 ),
               const Text('保存してあるバックアップからデータを復元します'),
               if (widget.failure && widget.onStartNew != null) ...[
                 const SizedBox(height: AppSpacing.xl),
                 OutlinedButton(
-                  onPressed: busy ? null : () => run(widget.onStartNew!),
+                  onPressed: busy || SaveRestriction.of(context)
+                      ? null
+                      : () => run(widget.onStartNew!),
                   child: const Text('新しく設定する'),
                 ),
               ],

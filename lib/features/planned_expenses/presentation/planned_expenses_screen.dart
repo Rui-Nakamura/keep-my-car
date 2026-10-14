@@ -7,6 +7,7 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../domain/models/planned_expense.dart';
 import '../../../app/display_format.dart';
 import 'planned_expense_editor.dart';
+import '../../../app/save_restriction.dart';
 
 class PlannedExpensesScreen extends StatefulWidget {
   const PlannedExpensesScreen({
@@ -30,6 +31,7 @@ class PlannedExpensesScreen extends StatefulWidget {
 
 class _PlannedExpensesScreenState extends State<PlannedExpensesScreen> {
   Future<void> _edit([PlannedExpense? expense]) async {
+    if (SaveRestriction.of(context) && expense == null) return;
     if (widget.session.ownershipTargetReached && expense == null) return;
     final change = await Navigator.of(context).push<ExpenseChange>(
       MaterialPageRoute(
@@ -82,7 +84,12 @@ class _PlannedExpensesScreenState extends State<PlannedExpensesScreen> {
           OutlinedButton(
             key: ValueKey('edit-expense-${expense.id}'),
             onPressed: () => _edit(expense),
-            child: Text(widget.session.ownershipTargetReached ? '確認' : '編集'),
+            child: Text(
+              widget.session.ownershipTargetReached ||
+                      SaveRestriction.of(context)
+                  ? '確認'
+                  : '編集',
+            ),
           ),
         ],
       ),
@@ -161,7 +168,7 @@ class _PlannedExpensesScreenState extends State<PlannedExpensesScreen> {
               const SizedBox(height: AppSpacing.lg),
               if (!widget.session.ownershipTargetReached)
                 FilledButton(
-                  onPressed: () => _edit(),
+                  onPressed: SaveRestriction.of(context) ? null : () => _edit(),
                   child: const Text('予定費を追加'),
                 ),
               if (years.isNotEmpty) ...[

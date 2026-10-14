@@ -126,7 +126,7 @@ void main() {
       await pumpReserve(tester, fund: 150, expenses: [expense(90)]);
       expect(find.text('月 0円'), findsNWidgets(2));
       expect(find.text('＋0円／月'), findsOneWidget);
-      expect(find.text('計算できません'), findsNothing);
+      expect(find.text('現在の条件では計算できません'), findsNothing);
       expect(find.text(explanation), findsOneWidget);
     },
   );
@@ -138,7 +138,7 @@ void main() {
     expect(find.text('0円'), findsOneWidget);
     expect(find.text('月 0円'), findsNWidgets(2));
     expect(find.text('＋0円／月'), findsOneWidget);
-    expect(find.text('計算できません'), findsNothing);
+    expect(find.text('現在の条件では計算できません'), findsNothing);
   });
 
   for (final pastTarget in [false, true]) {
@@ -153,11 +153,8 @@ void main() {
               : const YearMonth(2035, 4),
           scale: 3,
         );
-        expect(find.text('計算できません'), findsOneWidget);
-        expect(
-          find.text('計画データに確認が必要な項目があります。\n計画設定を見直してください。'),
-          findsOneWidget,
-        );
+        expect(find.text('現在の条件では計算できません'), findsOneWidget);
+        expect(find.text('資金計画の設定を見直してください。'), findsOneWidget);
         for (final label in [
           '予定費のみ',
           '大型修理込み',

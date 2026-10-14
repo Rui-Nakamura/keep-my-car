@@ -223,7 +223,7 @@ void main() {
     (
       '設定',
       '計画設定',
-      ['車・所有計画', '現在走行距離', '年間走行距離', '資金計画', '現在の愛車専用資金', '大型修理予備費', 'この試算に反映'],
+      ['車・所有計画', '現在走行距離', '年間走行距離', '資金計画（任意）', '資金計画を利用しています', 'この試算に反映'],
     ),
   ];
 
@@ -292,7 +292,7 @@ void main() {
           expect(find.byType(Drawer), findsNothing);
           expect(
             find.byType(TextField),
-            destination.$2 == '計画設定' ? findsNWidgets(4) : findsNothing,
+            destination.$2 == '計画設定' ? findsNWidgets(2) : findsNothing,
           );
           expect(tester.takeException(), isNull);
           if (scale == 1.0) {

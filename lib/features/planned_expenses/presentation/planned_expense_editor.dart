@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/save_request.dart';
 import '../../../app/save_progress.dart';
+import '../../../app/save_restriction.dart';
 
 import '../../../app/plan_session.dart';
 import '../../../app/theme/app_spacing.dart';
@@ -47,7 +48,11 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
   }
 
   Future<void> _save() async {
-    if (_saving || widget.session.ownershipTargetReached) return;
+    if (_saving ||
+        SaveRestriction.of(context) ||
+        widget.session.ownershipTargetReached) {
+      return;
+    }
     FocusScope.of(context).unfocus();
     final errors = validatePlannedExpense(
       name: _name.text,
@@ -80,7 +85,7 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
   }
 
   Future<void> _delete() async {
-    if (_saving) return;
+    if (_saving || SaveRestriction.of(context)) return;
     FocusScope.of(context).unfocus();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -101,7 +106,7 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
         ],
       ),
     );
-    if (!mounted || confirmed != true) return;
+    if (!mounted || confirmed != true || SaveRestriction.of(context)) return;
     setState(() {
       _saving = true;
       _saveError = null;
@@ -276,7 +281,9 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
                   _input(ExpenseField.amount, '金額（円）', _amount),
                   FilledButton(
                     key: const ValueKey('save-expense'),
-                    onPressed: _saving ? null : _save,
+                    onPressed: _saving || SaveRestriction.of(context)
+                        ? null
+                        : _save,
                     child: Text(
                       _saving
                           ? '保存中…'
@@ -291,7 +298,9 @@ class _PlannedExpenseEditorState extends State<PlannedExpenseEditor> {
                 if (widget.expense != null) ...[
                   const SizedBox(height: AppSpacing.xl),
                   OutlinedButton(
-                    onPressed: _saving ? null : _delete,
+                    onPressed: _saving || SaveRestriction.of(context)
+                        ? null
+                        : _delete,
                     child: const Text('この予定を削除'),
                   ),
                 ],

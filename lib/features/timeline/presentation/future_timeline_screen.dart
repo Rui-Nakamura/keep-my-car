@@ -34,8 +34,14 @@ class FutureTimelineScreen extends StatelessWidget {
     this.updatePending = false,
     this.onViewed,
     this.onReviewTarget,
+    this.fundingTargetMonth,
+    this.fundingTargetAge,
+    this.fundingTargetYen,
   });
 
+  final YearMonth? fundingTargetMonth;
+  final int? fundingTargetAge;
+  final int? fundingTargetYen;
   final List<TimelineYearData> years;
   final YearMonth referenceMonth;
   final YearMonth ownershipTargetMonth;
@@ -196,6 +202,18 @@ class FutureTimelineScreen extends StatelessWidget {
                       _TimelineYear(
                         isFirst: entry.$1 == 0,
                         isLast: entry.$1 == years.length - 1,
+                        fundingTargetMonth:
+                            fundingTargetMonth?.year == entry.$2.year &&
+                                fundingTargetMonth!.compareTo(referenceMonth) >=
+                                    0 &&
+                                fundingTargetMonth!.compareTo(
+                                      ownershipTargetMonth,
+                                    ) <=
+                                    0
+                            ? fundingTargetMonth
+                            : null,
+                        fundingTargetAge: fundingTargetAge,
+                        fundingTargetYen: fundingTargetYen,
                         year: entry.$2.year,
                         ownerAge: entry.$2.ownerAge,
                         carAge: entry.$2.carAge,
@@ -225,6 +243,9 @@ class FutureTimelineScreen extends StatelessWidget {
 
 class _TimelineYear extends StatelessWidget {
   const _TimelineYear({
+    this.fundingTargetMonth,
+    this.fundingTargetAge,
+    this.fundingTargetYen,
     required this.year,
     required this.isFirst,
     required this.isLast,
@@ -240,6 +261,9 @@ class _TimelineYear extends StatelessWidget {
     required this.ownershipTargetMonth,
   });
 
+  final YearMonth? fundingTargetMonth;
+  final int? fundingTargetAge;
+  final int? fundingTargetYen;
   final int year;
   final bool isFirst;
   final bool isLast;
@@ -498,6 +522,31 @@ class _TimelineYear extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ),
+                  ),
+                ],
+                if (fundingTargetMonth != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Semantics(
+                    container: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          '資金計画の目標',
+                          key: ValueKey('timeline-funding-$year'),
+                          style: text.bodyMedium,
+                        ),
+                        Text(
+                          formatMonth(fundingTargetMonth!),
+                          style: text.bodyMedium,
+                        ),
+                        Text(
+                          '$fundingTargetAge歳までに${formatYen(fundingTargetYen!)}',
+                          style: text.bodyMedium,
+                        ),
+                        Text('大きな修理に備えて確保したい金額', style: text.bodyMedium),
+                      ],
                     ),
                   ),
                 ],

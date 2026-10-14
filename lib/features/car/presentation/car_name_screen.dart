@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/save_request.dart';
 import '../../../app/save_progress.dart';
+import '../../../app/save_restriction.dart';
 
 import 'package:flutter/services.dart';
 
@@ -33,7 +34,7 @@ class _CarNameScreenState extends State<CarNameScreen> {
   }
 
   Future<void> _save() async {
-    if (_saving) return;
+    if (_saving || SaveRestriction.of(context)) return;
     final result = validateCarName(_controller.text);
     setState(() {
       _saving = true;
@@ -112,7 +113,9 @@ class _CarNameScreenState extends State<CarNameScreen> {
               if (_saveError != null)
                 Text(_saveError!, key: const ValueKey('save-error')),
               FilledButton(
-                onPressed: _saving ? null : _save,
+                onPressed: _saving || SaveRestriction.of(context)
+                    ? null
+                    : _save,
                 child: Text(_saving ? '保存中…' : '保存'),
               ),
             ],

@@ -49,7 +49,6 @@ Future<void> age(WidgetTester t, String field, int value) async {
 
 Future<void> validTarget(WidgetTester t) async {
   await age(t, 'ownershipAge', 71);
-  await age(t, 'reserveAge', 71);
 }
 
 void main() {
@@ -271,7 +270,17 @@ void main() {
           expect(repo.saves, isEmpty);
           expect([calls.timeline, calls.reserve], [0, 0]);
         } else {
-          if (action != 'invalid') await validTarget(t);
+          if (action != 'invalid') {
+            await validTarget(t);
+          } else {
+            await t.ensureVisible(
+              find.byKey(const ValueKey('input-currentMileage')),
+            );
+            await t.enterText(
+              find.byKey(const ValueKey('input-currentMileage')),
+              '-1',
+            );
+          }
           if (action == 'failure' || action == 'uncertain') {
             repo.saveResult = saveFailure(uncertain: action == 'uncertain');
           }
@@ -293,7 +302,7 @@ void main() {
             expect(find.byType(PlannedExpensesScreen), findsNothing);
             expect(p.timelinePending, isTrue);
             expect(p.homeUpdate, isNotNull);
-            expect([calls.timeline, calls.reserve], [1, 1]);
+            expect([calls.timeline, calls.reserve], [1, 0]);
             await tap(t, find.text('未来タイムラインを見る'));
             final screen = t.widget<FutureTimelineScreen>(
               find.byType(FutureTimelineScreen),
@@ -343,7 +352,7 @@ void main() {
                 applies++;
                 // Isolate the caller contract: a normal empty Map is success.
                 // An unchanged reached plan cannot pass production validation.
-                expect(next, conditions(ownership: 71, age: 71));
+                expect(next, conditions(ownership: 71));
                 return {};
               },
               onSaveCarName: (_) => null,

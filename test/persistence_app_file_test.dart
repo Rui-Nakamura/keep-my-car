@@ -53,9 +53,6 @@ void main() {
         'checked': '2026-08',
         'annual': '6789',
         'ownership': '72',
-        'fund': '123456',
-        'reserveAge': '66',
-        'reserve': '2345678',
       }.entries) {
         final field = find.byKey(ValueKey('setup-${entry.key}'));
         await tester.ensureVisible(field);
@@ -87,13 +84,13 @@ void main() {
           'annualMileageKm': 6789,
         },
         'planConditions': {
-          'fundingPlanEnabled': true,
+          'fundingPlanEnabled': false,
           'currentMileageKm': 54321,
           'annualMileageKm': 6789,
           'ownershipTargetAge': 72,
-          'currentCarFundYen': 123456,
-          'reserveTargetAge': 66,
-          'largeRepairReserveYen': 2345678,
+          'currentCarFundYen': 0,
+          'reserveTargetAge': 0,
+          'largeRepairReserveYen': 0,
         },
         'plannedExpenses': [],
       });
@@ -112,9 +109,10 @@ void main() {
       expect(plan.currentMileageKm, 54321);
       expect(plan.annualMileageKm, 6789);
       expect(plan.ownershipTargetAge, 72);
-      expect(plan.currentCarFundYen, 123456);
-      expect(plan.reserveTargetAge, 66);
-      expect(plan.largeRepairReserveYen, 2345678);
+      expect(plan.currentCarFundYen, 0);
+      expect(plan.fundingPlanEnabled, false);
+      expect(plan.reserveTargetAge, 0);
+      expect(plan.largeRepairReserveYen, 0);
       expect(home.session.plannedExpenses, isEmpty);
       expect(home.session.referenceMonth, const YearMonth(2026, 9));
       expect(find.text('FileIntegrationCar'), findsOneWidget);

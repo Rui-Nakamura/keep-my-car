@@ -16,6 +16,7 @@ class RepairReserveScreen extends StatelessWidget {
     this.updatePending = false,
     this.deltaYen,
     this.onViewed,
+    this.onReviewSettings,
   });
 
   final OwnershipGoal ownershipGoal;
@@ -24,12 +25,13 @@ class RepairReserveScreen extends StatelessWidget {
   final bool updatePending;
   final int? deltaYen;
   final VoidCallback? onViewed;
+  final VoidCallback? onReviewSettings;
 
   @override
   Widget build(BuildContext context) => UpdateFeedback(
-    pending: updatePending,
+    pending: result is RepairReserveSuccess && updatePending,
     duration: const Duration(milliseconds: 1900),
-    onViewed: onViewed,
+    onViewed: result is RepairReserveSuccess ? onViewed : null,
     builder: (context, emphasis) {
       final text = Theme.of(context).textTheme;
       final result = this.result;
@@ -53,22 +55,27 @@ class RepairReserveScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (updatePending) ...[
+                  if (result is RepairReserveSuccess && updatePending) ...[
                     const Text(
                       '大型修理への備えを更新しました',
                       key: ValueKey('reserve-update-text'),
                     ),
                     const SizedBox(height: AppSpacing.md),
                   ],
-                  Text('保有目標', style: text.bodyLarge),
-                  Text('${ownershipGoal.targetAge}歳まで', style: text.titleLarge),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text('備え目標', style: text.bodyLarge),
-                  Text('${reserve.targetAge}歳まで', style: text.titleLarge),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text('想定大型修理', style: text.bodyLarge),
-                  Text(formatYen(reserve.amountYen), style: text.titleLarge),
-                  const SizedBox(height: AppSpacing.section),
+                  if (result is RepairReserveSuccess) ...[
+                    Text('保有目標', style: text.bodyLarge),
+                    Text(
+                      '${ownershipGoal.targetAge}歳まで',
+                      style: text.titleLarge,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text('備え目標', style: text.bodyLarge),
+                    Text('${reserve.targetAge}歳まで', style: text.titleLarge),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text('想定大型修理', style: text.bodyLarge),
+                    Text(formatYen(reserve.amountYen), style: text.titleLarge),
+                    const SizedBox(height: AppSpacing.section),
+                  ],
                   if (result is RepairReserveSuccess) ...[
                     Text('必要な積立額', style: text.titleLarge),
                     const SizedBox(height: AppSpacing.lg),
@@ -105,13 +112,24 @@ class RepairReserveScreen extends StatelessWidget {
                       style: text.bodyLarge,
                     ),
                   ] else ...[
-                    Text('計算できません', style: text.titleLarge),
+                    Text(switch (result) {
+                      RepairReserveUnused() => '資金計画は利用していません',
+                      RepairReserveNeedsReview() => '資金計画の設定を確認してください',
+                      _ => '現在の条件では計算できません',
+                    }, style: text.titleLarge),
                     const SizedBox(height: AppSpacing.md),
                     Text(
-                      '計画データに確認が必要な項目があります。\n計画設定を見直してください。',
+                      result is RepairReserveUnused
+                          ? '資金計画の設定から利用を開始できます。'
+                          : '資金計画の設定を見直してください。',
                       style: text.bodyLarge,
                     ),
                   ],
+                  if (onReviewSettings != null)
+                    TextButton(
+                      onPressed: onReviewSettings,
+                      child: const Text('資金計画の設定を確認する'),
+                    ),
                   const SizedBox(height: AppSpacing.lg),
                   Text('※大型修理の発生時期を予測するものではありません。', style: text.bodyMedium),
                 ],
