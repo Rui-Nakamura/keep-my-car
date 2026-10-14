@@ -1,7 +1,7 @@
 /// Versioned storage values only; domain rules belong to the mapper.
 class KeepMyCarDataDto {
   KeepMyCarDataDto({
-    this.formatVersion = 1,
+    this.formatVersion = 2,
     required this.ownerBirthMonth,
     required this.car,
     required this.planConditions,
@@ -33,6 +33,7 @@ class CarDto {
 
 class PlanConditionsDto {
   const PlanConditionsDto({
+    this.fundingPlanEnabled,
     required this.currentMileageKm,
     required this.annualMileageKm,
     required this.ownershipTargetAge,
@@ -43,6 +44,7 @@ class PlanConditionsDto {
 
   final int currentMileageKm;
   final int annualMileageKm;
+  final bool? fundingPlanEnabled;
   final int ownershipTargetAge;
   final int currentCarFundYen;
   final int reserveTargetAge;

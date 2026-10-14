@@ -5,6 +5,14 @@ sealed class RepairReserveCalculationResult {
   const RepairReserveCalculationResult();
 }
 
+final class RepairReserveUnused extends RepairReserveCalculationResult {
+  const RepairReserveUnused();
+}
+
+final class RepairReserveNeedsReview extends RepairReserveCalculationResult {
+  const RepairReserveNeedsReview();
+}
+
 final class RepairReserveSuccess extends RepairReserveCalculationResult {
   const RepairReserveSuccess({
     required this.plannedExpensesOnlyMonthlyYen,

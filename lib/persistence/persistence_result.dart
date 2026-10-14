@@ -13,6 +13,7 @@ enum PersistenceStage {
   verifyCurrent,
   rollback,
   discard,
+  versionProtection,
 }
 
 /// Stage plus the original exception distinguish I/O, JSON/version and domain
@@ -33,7 +34,8 @@ class NoData extends LoadResult {
 }
 
 class Loaded extends LoadResult {
-  const Loaded(this.data);
+  const Loaded(this.data, {this.unsupportedBackupVersion});
+  final int? unsupportedBackupVersion;
   final RestoredCarData data;
 }
 
@@ -63,4 +65,11 @@ class SaveFailure extends SaveResult {
     : rollbackIssues = List.unmodifiable(rollbackIssues);
   final PersistenceIssue issue;
   final List<PersistenceIssue> rollbackIssues;
+}
+
+/// No fallback or destructive recovery is permitted for future schema data.
+class VersionProtected extends LoadResult {
+  const VersionProtected({required this.file, required this.version});
+  final String file;
+  final int version;
 }

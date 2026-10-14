@@ -236,7 +236,7 @@ void main() {
       if (issue != 'cancelled') await management(tester);
       final json = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
       if (issue == 'notBackup') json['format'] = 'other';
-      if (issue == 'version') json['exportFormatVersion'] = 2;
+      if (issue == 'version') json['exportFormatVersion'] = 3;
       if (issue == 'content') json.remove('data');
       response = issue == 'cancelled'
           ? {'status': 'cancelled'}

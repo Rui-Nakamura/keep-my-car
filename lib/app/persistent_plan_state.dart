@@ -10,6 +10,7 @@ import '../domain/models/year_month.dart';
 import '../domain/plan_conditions_validation.dart';
 import '../persistence/keep_my_car_data_mapper.dart';
 import '../persistence/keep_my_car_repository.dart';
+import '../persistence/keep_my_car_json_codec.dart';
 import '../persistence/persistence_result.dart';
 import 'plan_session.dart';
 import 'save_request.dart';
@@ -39,15 +40,22 @@ class PersistentPlanState extends ChangeNotifier {
   YearMonth? ownerBirthMonth;
   bool _busy = false;
   bool _disposed = false;
+  VersionProtected? versionProtection;
+  int? unsupportedBackupVersion;
+  bool get saveRestricted =>
+      versionProtection != null || unsupportedBackupVersion != null;
 
   bool get canRestoreBackup =>
       !_disposed &&
       !_busy &&
+      !saveRestricted &&
       phase != StartupPhase.loading &&
       phase != StartupPhase.uncertain;
 
   bool get canExportBackup =>
-      canRestoreBackup &&
+      !_disposed &&
+      !_busy &&
+      versionProtection == null &&
       (phase == StartupPhase.ready || phase == StartupPhase.recovered);
 
   static PlanSession _newSession(RestoredCarData data, YearMonth reference) =>
@@ -85,8 +93,11 @@ class PersistentPlanState extends ChangeNotifier {
     try {
       final result = await repository.load();
       if (_disposed) return;
+      versionProtection = null;
+      unsupportedBackupVersion = null;
       switch (result) {
-        case Loaded(:final data):
+        case Loaded(:final data, :final unsupportedBackupVersion):
+          this.unsupportedBackupVersion = unsupportedBackupVersion;
           _adopt(data);
           phase = StartupPhase.ready;
         case Recovered(:final data):
@@ -97,6 +108,14 @@ class PersistentPlanState extends ChangeNotifier {
           session = null;
           ownerBirthMonth = null;
           phase = StartupPhase.noData;
+        case VersionProtected():
+          // E-2 uses this typed protection to replace the legacy failure UI.
+          // Destructive boundaries already reject operations in E-1.
+          versionProtection = result;
+          session = null;
+          car = null;
+          ownerBirthMonth = null;
+          phase = StartupPhase.failure;
         case LoadFailure():
           phase = StartupPhase.failure;
       }
@@ -122,6 +141,7 @@ class PersistentPlanState extends ChangeNotifier {
     VoidCallback? prepare,
   }) async {
     if (_disposed ||
+        saveRestricted ||
         _busy ||
         phase == StartupPhase.loading ||
         (phase == StartupPhase.failure && !restoringBackup) ||
@@ -134,6 +154,20 @@ class PersistentPlanState extends ChangeNotifier {
       final result = await repository.save(candidate);
       if (_disposed) throw const SaveRequestFailure();
       if (result is SaveFailure) {
+        if (result.issue.cause case UnsupportedStorageVersion(
+          :final version,
+          :final file,
+        )) {
+          if (file == 'backup') {
+            unsupportedBackupVersion = version;
+          } else {
+            versionProtection = VersionProtected(
+              file: file ?? 'current',
+              version: version,
+            );
+          }
+          _notify();
+        }
         if (result.rollbackIssues.isNotEmpty) {
           phase = StartupPhase.uncertain;
           _notify();
@@ -182,11 +216,14 @@ class PersistentPlanState extends ChangeNotifier {
     if (phase != StartupPhase.noData || candidate.plannedExpenses.isNotEmpty) {
       throw const SaveRequestFailure();
     }
-    final errors = validatePlanConditions(
-      candidate.planConditions,
-      birthMonth: candidate.ownerBirthMonth,
-      referenceMonth: referenceMonth,
-    );
+    final errors =
+        (candidate.planConditions.fundingPlanEnabled
+        ? validatePlanConditions
+        : validateBasicPlanConditions)(
+          candidate.planConditions,
+          birthMonth: candidate.ownerBirthMonth,
+          referenceMonth: referenceMonth,
+        );
     if (errors.isNotEmpty ||
         validateCarName(candidate.car.name).error != null) {
       throw const SaveRequestFailure();
@@ -198,7 +235,7 @@ class PersistentPlanState extends ChangeNotifier {
   }
 
   Future<void> discardFailureAndStartNew() async {
-    if (_disposed || _busy || phase != StartupPhase.failure) {
+    if (_disposed || saveRestricted || _busy || phase != StartupPhase.failure) {
       throw const SaveRequestFailure();
     }
     _busy = true;
@@ -240,12 +277,45 @@ class PersistentPlanState extends ChangeNotifier {
     ), () => car = candidate).then((_) => null);
   }
 
+  FutureOr<Map<PlanField, PlanInputError>> applyBasic(PlanConditions input) {
+    final next = basicPlanCandidate(input, session!.conditions);
+    return _applyConditions(
+      next,
+      validateBasicPlanConditions(
+        next,
+        birthMonth: ownerBirthMonth!,
+        referenceMonth: referenceMonth,
+      ),
+    );
+  }
+
+  FutureOr<Map<PlanField, PlanInputError>> applyFunding(PlanConditions input) {
+    final next = fundingPlanCandidate(input, session!.conditions);
+    return _applyConditions(
+      next,
+      next.fundingPlanEnabled
+          ? validateFundingPlanConditions(
+              next,
+              birthMonth: ownerBirthMonth!,
+              referenceMonth: referenceMonth,
+            )
+          : <PlanField, PlanInputError>{},
+    );
+  }
+
   FutureOr<Map<PlanField, PlanInputError>> apply(PlanConditions next) {
     final errors = validatePlanConditions(
       next,
       birthMonth: ownerBirthMonth!,
       referenceMonth: referenceMonth,
     );
+    return _applyConditions(next, errors);
+  }
+
+  FutureOr<Map<PlanField, PlanInputError>> _applyConditions(
+    PlanConditions next,
+    Map<PlanField, PlanInputError> errors,
+  ) {
     if (errors.isNotEmpty || next == session!.conditions) return errors;
     final candidateCar = car!.copyWith(
       currentMileageKm: next.currentMileageKm,

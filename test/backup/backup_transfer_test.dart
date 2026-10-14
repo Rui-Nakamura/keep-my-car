@@ -48,7 +48,7 @@ void main() {
 
   for (final status in ['success', 'cancelled', 'error']) {
     test(
-      'export $status uses formal UTF-8 v1 without state mutation',
+      'export $status uses formal UTF-8 v2 without state mutation',
       () async {
         final old = state.snapshot;
         final oldSession = state.session;
@@ -68,7 +68,7 @@ void main() {
             jsonDecode(
               utf8.decode(call.arguments['bytes'] as Uint8List),
             )['exportFormatVersion'],
-            1,
+            2,
           );
           return {'status': status, if (status == 'error') 'code': 'ioFailure'};
         });
@@ -111,7 +111,7 @@ void main() {
         case BackupImportIssue.notBackup:
           json['format'] = 'other';
         case BackupImportIssue.unsupportedVersion:
-          json['exportFormatVersion'] = 2;
+          json['exportFormatVersion'] = 3;
         case BackupImportIssue.invalidStructure:
           json.remove('data');
         case BackupImportIssue.invalidContent:

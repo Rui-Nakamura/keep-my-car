@@ -43,6 +43,7 @@ RestoredCarData inputs() => (
     annualMileageKm: 4000,
   ),
   planConditions: const PlanConditions(
+    fundingPlanEnabled: true,
     currentMileageKm: 45000,
     annualMileageKm: 4000,
     ownershipTargetAge: 70,
@@ -145,10 +146,10 @@ void main() {
       );
     });
   }
-  test('export matches independent v1 fixture including exact field set', () {
+  test('export matches independent v2 fixture including exact field set', () {
     expect(
       jsonDecode(utf8.decode(codec.encode(inputs(), createdAt: timestamp))),
-      fixture(),
+      v2Fixture(),
     );
   });
   test(
@@ -237,7 +238,7 @@ void main() {
       BackupImportIssue.invalidStructure,
     ),
   );
-  for (final version in [-1, 0, 2, 999]) {
+  for (final version in [999]) {
     test(
       'unsupported version $version',
       () => rejected(
@@ -360,7 +361,7 @@ void main() {
       expectInputs(candidate, inputs());
       expect(
         jsonDecode(utf8.decode(codec.encode(candidate, createdAt: timestamp))),
-        fixture(),
+        v2Fixture(),
       );
     });
   }
@@ -417,4 +418,10 @@ void main() {
       );
     });
   }
+}
+
+Map<String, dynamic> v2Fixture() {
+  final root = fixture()..['exportFormatVersion'] = 2;
+  section(root, 'planConditions')['fundingPlanEnabled'] = true;
+  return root;
 }

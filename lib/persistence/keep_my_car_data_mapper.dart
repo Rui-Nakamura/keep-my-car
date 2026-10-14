@@ -31,6 +31,7 @@ class KeepMyCarDataMapper {
   }) {
     _validate(car, planConditions, plannedExpenses);
     final data = KeepMyCarDataDto(
+      formatVersion: 2,
       ownerBirthMonth: ownerBirthMonth.toString(),
       car: CarDto(
         name: validateCarName(car.name).name,
@@ -40,6 +41,7 @@ class KeepMyCarDataMapper {
         annualMileageKm: car.annualMileageKm,
       ),
       planConditions: PlanConditionsDto(
+        fundingPlanEnabled: planConditions.fundingPlanEnabled,
         currentMileageKm: planConditions.currentMileageKm,
         annualMileageKm: planConditions.annualMileageKm,
         ownershipTargetAge: planConditions.ownershipTargetAge,
@@ -84,6 +86,9 @@ class KeepMyCarDataMapper {
       annualMileageKm: c.annualMileageKm,
     );
     final plan = PlanConditions(
+      fundingPlanEnabled: data.formatVersion == 1
+          ? true
+          : p.fundingPlanEnabled!,
       currentMileageKm: p.currentMileageKm,
       annualMileageKm: p.annualMileageKm,
       ownershipTargetAge: p.ownershipTargetAge,
@@ -112,7 +117,7 @@ class KeepMyCarDataMapper {
           },
         ),
     ];
-    _validate(car, plan, expenses);
+    _validate(car, plan, expenses, legacyV1: data.formatVersion == 1);
     return (
       ownerBirthMonth: _month(data.ownerBirthMonth),
       car: car.copyWith(name: validateCarName(car.name).name),
@@ -126,14 +131,20 @@ class KeepMyCarDataMapper {
     int.parse(value.substring(5)),
   );
 
-  void _validate(Car car, PlanConditions plan, List<PlannedExpense> expenses) {
+  void _validate(
+    Car car,
+    PlanConditions plan,
+    List<PlannedExpense> expenses, {
+    bool legacyV1 = false,
+  }) {
     final name = validateCarName(car.name);
     if (name.error != null) throw ArgumentError.value(name.error, 'car.name');
-    final errors = validatePlanConditionsInvariants(plan);
+    final errors = validatePlanConditionsInvariants(plan, legacyV1: legacyV1);
     if (errors.isNotEmpty) throw ArgumentError.value(errors, 'planConditions');
     // Reuse the same mileage bounds without creating storage-only ranges.
     final carErrors = validatePlanConditionsInvariants(
       PlanConditions(
+        fundingPlanEnabled: plan.fundingPlanEnabled,
         currentMileageKm: car.currentMileageKm,
         annualMileageKm: car.annualMileageKm,
         ownershipTargetAge: plan.ownershipTargetAge,

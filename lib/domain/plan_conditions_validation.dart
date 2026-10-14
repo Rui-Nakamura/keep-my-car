@@ -20,8 +20,9 @@ YearMonth reserveMonth(YearMonth birthMonth, int age) =>
 
 /// Fixed rules shared by editing and persistence, independent of today's month.
 Map<PlanField, PlanInputError> validatePlanConditionsInvariants(
-  PlanConditions conditions,
-) {
+  PlanConditions conditions, {
+  bool legacyV1 = false,
+}) {
   final errors = <PlanField, PlanInputError>{};
   void range(PlanField field, int value, int minimum, int maximum) {
     if (value < minimum || value > maximum) {
@@ -35,7 +36,7 @@ Map<PlanField, PlanInputError> validatePlanConditionsInvariants(
   range(PlanField.reserve, conditions.largeRepairReserveYen, 0, 1000000000);
   range(PlanField.ownershipAge, conditions.ownershipTargetAge, 0, 100);
   range(PlanField.reserveAge, conditions.reserveTargetAge, 0, 100);
-  if (conditions.reserveTargetAge > conditions.ownershipTargetAge) {
+  if (legacyV1 && conditions.reserveTargetAge > conditions.ownershipTargetAge) {
     errors[PlanField.reserveAge] = PlanInputError.exceedsOwnershipAge;
   }
   return errors;
@@ -47,7 +48,7 @@ Map<PlanField, PlanInputError> validatePlanConditions(
   required YearMonth birthMonth,
   required YearMonth referenceMonth,
 }) {
-  final errors = validatePlanConditionsInvariants(conditions);
+  final errors = validatePlanConditionsInvariants(conditions, legacyV1: true);
   if (conditions.ownershipTargetAge <
       completedYears(birthMonth, referenceMonth)) {
     errors[PlanField.ownershipAge] = PlanInputError.outOfRange;
@@ -61,3 +62,113 @@ Map<PlanField, PlanInputError> validatePlanConditions(
   }
   return errors;
 }
+
+/// Basic editing is independent of auxiliary temporal constraints.
+Map<PlanField, PlanInputError> validateBasicPlanConditions(
+  PlanConditions conditions, {
+  required YearMonth birthMonth,
+  required YearMonth referenceMonth,
+}) {
+  final errors = validatePlanConditionsInvariants(conditions);
+  errors.removeWhere(
+    (field, _) => !const [
+      PlanField.currentMileage,
+      PlanField.annualMileage,
+      PlanField.ownershipAge,
+    ].contains(field),
+  );
+  if (conditions.ownershipTargetAge <
+      completedYears(birthMonth, referenceMonth)) {
+    errors[PlanField.ownershipAge] = PlanInputError.outOfRange;
+  }
+  return errors;
+}
+
+/// Temporal and cross-target preconditions, independent of usage and ranges.
+/// Past-target errors retain priority when both conditions are violated.
+PlanInputError? fundingPlanPreconditionError(
+  PlanConditions conditions, {
+  required YearMonth birthMonth,
+  required YearMonth referenceMonth,
+}) {
+  if (reserveMonth(
+        birthMonth,
+        conditions.reserveTargetAge,
+      ).compareTo(referenceMonth) <
+      0) {
+    return PlanInputError.pastTargetMonth;
+  }
+  if (conditions.reserveTargetAge > conditions.ownershipTargetAge) {
+    return PlanInputError.exceedsOwnershipAge;
+  }
+  return null;
+}
+
+Map<PlanField, PlanInputError> validateFundingPlanConditions(
+  PlanConditions conditions, {
+  required YearMonth birthMonth,
+  required YearMonth referenceMonth,
+}) {
+  final errors = validatePlanConditionsInvariants(conditions);
+  errors.removeWhere(
+    (field, _) => !const [
+      PlanField.fund,
+      PlanField.reserveAge,
+      PlanField.reserve,
+    ].contains(field),
+  );
+  final preconditionError = fundingPlanPreconditionError(
+    conditions,
+    birthMonth: birthMonth,
+    referenceMonth: referenceMonth,
+  );
+  if (preconditionError != null) {
+    errors[PlanField.reserveAge] = preconditionError;
+  }
+  return errors;
+}
+
+/// New optional plan: the zero target is an internal unused value.
+PlanConditions newBasicPlanConditions({
+  required int currentMileageKm,
+  required int annualMileageKm,
+  required int ownershipTargetAge,
+}) => PlanConditions(
+  fundingPlanEnabled: false,
+  currentMileageKm: currentMileageKm,
+  annualMileageKm: annualMileageKm,
+  ownershipTargetAge: ownershipTargetAge,
+  currentCarFundYen: 0,
+  reserveTargetAge: 0,
+  largeRepairReserveYen: 0,
+);
+
+PlanConditions basicPlanCandidate(PlanConditions basic, PlanConditions saved) =>
+    PlanConditions(
+      fundingPlanEnabled: saved.fundingPlanEnabled,
+      currentMileageKm: basic.currentMileageKm,
+      annualMileageKm: basic.annualMileageKm,
+      ownershipTargetAge: basic.ownershipTargetAge,
+      currentCarFundYen: saved.currentCarFundYen,
+      reserveTargetAge: saved.reserveTargetAge,
+      largeRepairReserveYen: saved.largeRepairReserveYen,
+    );
+
+PlanConditions fundingPlanCandidate(
+  PlanConditions funding,
+  PlanConditions saved,
+) => PlanConditions(
+  fundingPlanEnabled: funding.fundingPlanEnabled,
+  currentMileageKm: saved.currentMileageKm,
+  annualMileageKm: saved.annualMileageKm,
+  ownershipTargetAge: saved.ownershipTargetAge,
+  currentCarFundYen: funding.fundingPlanEnabled
+      ? funding.currentCarFundYen
+      : saved.currentCarFundYen,
+  reserveTargetAge: funding.fundingPlanEnabled
+      ? funding.reserveTargetAge
+      : saved.reserveTargetAge,
+  largeRepairReserveYen: funding.fundingPlanEnabled
+      ? funding.largeRepairReserveYen
+      : saved.largeRepairReserveYen,
+);

@@ -40,10 +40,13 @@ class KeepMyCarRepository {
     if (_busy) return LoadFailure([_busyIssue()]);
     _busy = true;
     final issues = <PersistenceIssue>[];
+    RestoredCarData? currentData;
     try {
       try {
         final current = await _storage.read(DataFile.current);
-        if (current != null) return Loaded(_decode(current));
+        if (current != null) currentData = _decode(current);
+      } on UnsupportedStorageVersion catch (error) {
+        return VersionProtected(file: 'current', version: error.version);
       } catch (error, stack) {
         issues.add(
           PersistenceIssue(PersistenceStage.readCurrent, error, stack),
@@ -52,6 +55,13 @@ class KeepMyCarRepository {
       try {
         final backup = await _storage.read(DataFile.backup);
         if (backup != null) {
+          final futureVersion = _futureVersion(backup);
+          if (futureVersion != null) {
+            return currentData != null
+                ? Loaded(currentData, unsupportedBackupVersion: futureVersion)
+                : VersionProtected(file: 'backup', version: futureVersion);
+          }
+          if (currentData != null) return Loaded(currentData);
           return Recovered(
             _decode(backup),
             currentIssue: issues.isEmpty ? null : issues.first,
@@ -60,6 +70,7 @@ class KeepMyCarRepository {
       } catch (error, stack) {
         issues.add(PersistenceIssue(PersistenceStage.readBackup, error, stack));
       }
+      if (currentData != null) return Loaded(currentData);
       // Temp is never read, promoted or deleted during load.
       return issues.isEmpty ? const NoData() : LoadFailure(issues);
     } finally {
@@ -79,6 +90,8 @@ class KeepMyCarRepository {
       // Encode before the first await: later caller list changes cannot change
       // the candidate that is being committed.
       final candidate = _encode(snapshot);
+      stage = PersistenceStage.versionProtection;
+      await _checkVersionProtection();
       stage = PersistenceStage.prepare;
       await _storage.prepare();
       stage = PersistenceStage.writeTemp;
@@ -147,6 +160,7 @@ class KeepMyCarRepository {
     _busy = true;
     var deletionStarted = false;
     try {
+      await _checkVersionProtection();
       for (final file in [DataFile.current, DataFile.backup]) {
         final bytes = await _storage.read(file);
         if (bytes == null) continue;
@@ -174,6 +188,30 @@ class KeepMyCarRepository {
       return SaveFailure(issue, rollbackIssues: deletionStarted ? [issue] : []);
     } finally {
       _busy = false;
+    }
+  }
+
+  int? _futureVersion(List<int> bytes) {
+    try {
+      final root = jsonDecode(utf8.decode(bytes));
+      if (root is Map<String, dynamic>) {
+        final version = root['formatVersion'];
+        if (version is int && version > 2) return version;
+      }
+    } on FormatException {
+      // Malformed input follows the existing corruption/recovery contract.
+    }
+    return null;
+  }
+
+  Future<void> _checkVersionProtection() async {
+    for (final file in [DataFile.current, DataFile.backup]) {
+      final bytes = await _storage.read(file);
+      if (bytes == null) continue;
+      final version = _futureVersion(bytes);
+      if (version != null) {
+        throw UnsupportedStorageVersion(version, file: file.name);
+      }
     }
   }
 

@@ -77,7 +77,7 @@ void main() {
         ) as Map<String, dynamic>,
       );
       expect(json, {
-        'formatVersion': 1,
+        'formatVersion': 2,
         'ownerBirthMonth': '1975-06',
         'car': {
           'name': 'FileIntegrationCar',
@@ -87,6 +87,7 @@ void main() {
           'annualMileageKm': 6789,
         },
         'planConditions': {
+          'fundingPlanEnabled': true,
           'currentMileageKm': 54321,
           'annualMileageKm': 6789,
           'ownershipTargetAge': 72,

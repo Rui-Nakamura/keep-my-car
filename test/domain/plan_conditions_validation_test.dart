@@ -57,7 +57,7 @@ void main() {
         ownership: 101,
         age: 102,
       );
-      expect(validatePlanConditionsInvariants(invalid), {
+      expect(validatePlanConditionsInvariants(invalid, legacyV1: true), {
         PlanField.currentMileage: PlanInputError.outOfRange,
         PlanField.annualMileage: PlanInputError.outOfRange,
         PlanField.fund: PlanInputError.outOfRange,
@@ -69,7 +69,7 @@ void main() {
   );
   test('editing preserves past-target error priority over target ordering', () {
     final plan = conditions(ownership: 50, age: 55);
-    expect(validatePlanConditionsInvariants(plan), {
+    expect(validatePlanConditionsInvariants(plan, legacyV1: true), {
       PlanField.reserveAge: PlanInputError.exceedsOwnershipAge,
     });
     expect(

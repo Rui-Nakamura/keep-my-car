@@ -93,6 +93,9 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
     if (month('birth') != null &&
         fields.keys.every((key) => number(key) != null)) {
       plan = PlanConditions(
+        // E-1 compatibility: this legacy flow explicitly collects funding inputs.
+        // E-2 will use newBasicPlanConditions with seven basic inputs instead.
+        fundingPlanEnabled: true,
         currentMileageKm: number('mileage')!,
         annualMileageKm: number('annual')!,
         ownershipTargetAge: number('ownership')!,

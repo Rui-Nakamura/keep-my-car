@@ -256,7 +256,9 @@ void main() {
     expect(loaded.data.car.name, 'メルセデスAMG E53');
     expect(loaded.data.plannedExpenses.first.name, '12Vバッテリー');
     expect(bytes(loaded.data), bytes(snapshot()));
-    expect(storage.events.take(7), [
+    expect(storage.events.take(9), [
+      'read.current',
+      'read.backup',
       'prepare',
       'write.temp',
       'read.temp',
@@ -295,13 +297,13 @@ void main() {
   });
 
   test(
-    'current wins without reading even a broken backup or stale temp',
+    'current wins after backup version inspection without reading stale temp',
     () async {
       await seed();
       await put(DataFile.backup, [0xff]);
       await put(DataFile.temp, bytes(snapshot('未確定')));
       expect((await repository.load() as Loaded).data.car.name, 'B');
-      expect(storage.events, ['read.current']);
+      expect(storage.events, ['read.current', 'read.backup']);
       expect(await io.read(DataFile.temp), bytes(snapshot('未確定')));
     },
   );
@@ -371,7 +373,14 @@ void main() {
           await seed();
           final cause = FileSystemException('injected ${spec.$1}');
           var fired = false;
+          var matchingReads = 0;
           void hook(String op) {
+            if (op == spec.$1 &&
+                op.startsWith('read.') &&
+                op != 'read.temp' &&
+                ++matchingReads == 1) {
+              return;
+            }
             if (!fired && op == spec.$1) {
               fired = true;
               throw cause;
@@ -414,7 +423,7 @@ void main() {
             await io.writeTemp(utf8.encode('{'));
             break;
           case 'version':
-            data['formatVersion'] = 2;
+            data['formatVersion'] = 0;
             await io.writeTemp(utf8.encode(jsonEncode(data)));
             break;
           case 'type':
@@ -516,7 +525,7 @@ void main() {
       await seed();
       var reads = 0;
       storage.before = (op) {
-        if (op == 'read.backup' && ++reads == 2) {
+        if (op == 'read.backup' && ++reads == 3) {
           throw const FileSystemException('verify backup');
         }
       };
@@ -569,7 +578,7 @@ void main() {
     );
     expect((await repo.load() as LoadFailure).issues.first.cause, same(cause));
     final save = await repo.save(snapshot()) as SaveFailure;
-    expect(save.issue.stage, PersistenceStage.prepare);
+    expect(save.issue.stage, PersistenceStage.versionProtection);
     expect(save.issue.cause, same(cause));
   });
 

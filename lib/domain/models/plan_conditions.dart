@@ -1,6 +1,7 @@
-/// The six editable values committed together for one calculation.
+/// Formal basic and optional funding inputs, including explicit usage intent.
 class PlanConditions {
   const PlanConditions({
+    required this.fundingPlanEnabled,
     required this.currentMileageKm,
     required this.annualMileageKm,
     required this.ownershipTargetAge,
@@ -9,6 +10,7 @@ class PlanConditions {
     required this.largeRepairReserveYen,
   });
 
+  final bool fundingPlanEnabled;
   final int currentMileageKm;
   final int annualMileageKm;
   final int ownershipTargetAge;
@@ -19,6 +21,7 @@ class PlanConditions {
   @override
   bool operator ==(Object other) =>
       other is PlanConditions &&
+      fundingPlanEnabled == other.fundingPlanEnabled &&
       currentMileageKm == other.currentMileageKm &&
       annualMileageKm == other.annualMileageKm &&
       ownershipTargetAge == other.ownershipTargetAge &&
@@ -28,6 +31,7 @@ class PlanConditions {
 
   @override
   int get hashCode => Object.hash(
+    fundingPlanEnabled,
     currentMileageKm,
     annualMileageKm,
     ownershipTargetAge,

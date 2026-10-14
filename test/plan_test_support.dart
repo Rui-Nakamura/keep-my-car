@@ -21,6 +21,7 @@ PlanConditions conditions({
   int age = 65,
   int reserve = 2000000,
 }) => PlanConditions(
+  fundingPlanEnabled: true,
   currentMileageKm: mileage,
   annualMileageKm: annual,
   ownershipTargetAge: ownership,

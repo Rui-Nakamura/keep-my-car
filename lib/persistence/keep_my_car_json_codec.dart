@@ -29,11 +29,21 @@ class KeepMyCarJsonCodec {
     if (version is! int) {
       throw const FormatException('Expected int: formatVersion');
     }
-    if (version != 1) {
+    if (version > 2) {
+      throw UnsupportedStorageVersion(version);
+    }
+    if (version < 1) {
       throw FormatException('Unsupported formatVersion: $version');
     }
-    final data = _payload.decode(root);
+    final data = _payload.decode(root, version: version);
     validateStorageFormat(data);
     return data;
   }
+}
+
+/// Future positive integer version, distinct from corrupt input.
+class UnsupportedStorageVersion implements Exception {
+  const UnsupportedStorageVersion(this.version, {this.file});
+  final int version;
+  final String? file;
 }

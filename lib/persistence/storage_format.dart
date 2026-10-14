@@ -2,8 +2,12 @@ import 'keep_my_car_data_dto.dart';
 
 /// Storage grammar validation also applies to manually constructed DTOs.
 void validateStorageFormat(KeepMyCarDataDto data) {
-  if (data.formatVersion != 1) {
+  if (data.formatVersion != 1 && data.formatVersion != 2) {
     throw FormatException('Unsupported formatVersion: ${data.formatVersion}');
+  }
+  if (data.formatVersion == 2 &&
+      data.planConditions.fundingPlanEnabled == null) {
+    throw const FormatException('Required bool: fundingPlanEnabled');
   }
   validateStorageMonth(data.ownerBirthMonth);
   validateStorageMonth(data.car.firstRegistrationMonth);

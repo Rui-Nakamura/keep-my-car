@@ -6,12 +6,13 @@ import '../persistence/keep_my_car_data_mapper.dart';
 import '../persistence/keep_my_car_payload_codec.dart';
 import 'backup_import_result.dart';
 
-/// OS-independent UTF-8 backup v1. No file access, clock, or state mutation.
+/// OS-independent UTF-8 backup: reads v1/v2, exports v2.
+/// The historical class name is retained for source compatibility. No file access, clock, or state mutation.
 class BackupV1Codec {
   const BackupV1Codec();
 
   static const _format = 'keep-my-car-backup';
-  static const _version = 1;
+  static const _version = 2;
   static const _mapper = KeepMyCarDataMapper();
   static const _payload = KeepMyCarPayloadCodec();
 
@@ -51,10 +52,17 @@ class BackupV1Codec {
       return const BackupImportFailure(BackupImportIssue.notBackup);
     }
     final version = decoded['exportFormatVersion'];
-    if (version is! int) {
+    if (version is! int || version < 1) {
       return const BackupImportFailure(BackupImportIssue.invalidStructure);
     }
-    if (version != _version) {
+    // Backup and local storage versions evolve independently. New versions
+    // require an explicit schema mapping instead of inheriting numeric identity.
+    final validationVersion = switch (version) {
+      1 => 1,
+      2 => 2,
+      _ => null,
+    };
+    if (validationVersion == null) {
       return const BackupImportFailure(BackupImportIssue.unsupportedVersion);
     }
     final createdAt = decoded['createdAt'];
@@ -67,7 +75,7 @@ class BackupV1Codec {
 
     final KeepMyCarDataDto dto;
     try {
-      dto = _payload.decode(payload);
+      dto = _payload.decode(payload, version: validationVersion);
     } on FormatException {
       return const BackupImportFailure(BackupImportIssue.invalidStructure);
     }

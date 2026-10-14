@@ -2,9 +2,8 @@ import 'keep_my_car_data_dto.dart';
 
 /// Converts the four formal input fields between objects and existing DTOs.
 /// Checks required fields and JSON types; ignores unknown fields.
-/// Does not read or emit version metadata. The returned DTO uses its existing
-/// default storage version. Callers retain format validation (months/enums),
-/// and the mapper retains domain validation; this is not a full validator.
+/// Envelope callers explicitly select the schema version; payloads contain no
+/// version metadata. Mapper validates domain rules after structural decoding.
 class KeepMyCarPayloadCodec {
   const KeepMyCarPayloadCodec();
 
@@ -21,6 +20,8 @@ class KeepMyCarPayloadCodec {
         'annualMileageKm': car.annualMileageKm,
       },
       'planConditions': {
+        if (data.formatVersion == 2)
+          'fundingPlanEnabled': plan.fundingPlanEnabled,
         'currentMileageKm': plan.currentMileageKm,
         'annualMileageKm': plan.annualMileageKm,
         'ownershipTargetAge': plan.ownershipTargetAge,
@@ -45,11 +46,12 @@ class KeepMyCarPayloadCodec {
     };
   }
 
-  KeepMyCarDataDto decode(Map<String, dynamic> root) {
+  KeepMyCarDataDto decode(Map<String, dynamic> root, {required int version}) {
     final car = _object(root['car'], 'car');
     final plan = _object(root['planConditions'], 'planConditions');
     final expenses = _field<List<dynamic>>(root, 'plannedExpenses');
     return KeepMyCarDataDto(
+      formatVersion: version,
       ownerBirthMonth: _field<String>(root, 'ownerBirthMonth'),
       car: CarDto(
         name: _field<String>(car, 'name'),
@@ -59,6 +61,9 @@ class KeepMyCarPayloadCodec {
         annualMileageKm: _field<int>(car, 'annualMileageKm'),
       ),
       planConditions: PlanConditionsDto(
+        fundingPlanEnabled: version == 1
+            ? null
+            : _field<bool>(plan, 'fundingPlanEnabled'),
         currentMileageKm: _field<int>(plan, 'currentMileageKm'),
         annualMileageKm: _field<int>(plan, 'annualMileageKm'),
         ownershipTargetAge: _field<int>(plan, 'ownershipTargetAge'),

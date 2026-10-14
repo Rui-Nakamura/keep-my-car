@@ -119,7 +119,7 @@ void main() {
         expect(dto.ownerBirthMonth, month.toString());
         final json = jsonDecode(codec.encode(dto)) as Map<String, dynamic>;
         expect(json['ownerBirthMonth'], month.toString());
-        expect(json['formatVersion'], 1);
+        expect(json['formatVersion'], 2);
         expect(json.containsKey('referenceMonth'), isFalse);
         final restored = mapper.toDomain(codec.decode(jsonEncode(json)));
         expect(restored.ownerBirthMonth, month);
@@ -186,7 +186,7 @@ void main() {
   }
   test('Domain to DTO preserves all fields and stable enum identifiers', () {
     final dto = sampleDto();
-    expect(dto.formatVersion, 1);
+    expect(dto.formatVersion, 2);
     expect(dto.ownerBirthMonth, '1970-04');
     expect(dto.car.name, 'メルセデスAMG E53');
     expect(dto.car.firstRegistrationMonth, '2018-08');
@@ -244,7 +244,7 @@ void main() {
   test('payload round trip needs no version and emits only input fields', () {
     const payload = KeepMyCarPayloadCodec();
     final expected = wire()..remove('formatVersion');
-    final dto = payload.decode(expected);
+    final dto = payload.decode(expected, version: 1);
     expect(dto.formatVersion, 1);
     expect(payload.encode(dto), expected);
     expect(payload.encode(dto).keys, [
@@ -260,7 +260,7 @@ void main() {
     const payload = KeepMyCarPayloadCodec();
     final expected = wire()..remove('formatVersion');
     final input = {...expected, 'formatVersion': 'not payload metadata'};
-    final dto = payload.decode(input);
+    final dto = payload.decode(input, version: 1);
     expect(dto.formatVersion, 1);
     expect(payload.encode(dto), expected);
     expect(input['formatVersion'], 'not payload metadata');
@@ -366,9 +366,40 @@ void main() {
     }
   }
 
-  for (final version in [-1, 0, 2, 999, 1.0, true]) {
+  test(
+    'supported v2 rejects missing fundingPlanEnabled as malformed schema',
+    () {
+      final data = wire()..['formatVersion'] = 2;
+      expect(() => codec.decode(jsonEncode(data)), throwsFormatException);
+    },
+  );
+
+  for (final version in [3, 999]) {
+    test('future integer version $version is UnsupportedStorageVersion', () {
+      // Unknown schema must be identified before inspecting required fields.
+      expect(
+        () => codec.decode(jsonEncode({'formatVersion': version})),
+        throwsA(
+          isA<UnsupportedStorageVersion>().having(
+            (e) => e.version,
+            'version',
+            version,
+          ),
+        ),
+      );
+    });
+  }
+
+  test('missing formatVersion is malformed', () {
+    expect(
+      () => codec.decode(jsonEncode(wire()..remove('formatVersion'))),
+      throwsFormatException,
+    );
+  });
+
+  for (final version in [null, -1, 0, 1.0, true, '2']) {
     test(
-      'unsupported or non-integer version $version (${version.runtimeType}) fails',
+      'malformed version $version (${version.runtimeType}) is FormatException',
       () {
         final data = wire()..['formatVersion'] = version;
         expect(() => codec.decode(jsonEncode(data)), throwsFormatException);
@@ -753,7 +784,7 @@ void main() {
             ),
           ),
         ),
-        data,
+        v2Wire(data),
       );
     },
   );
@@ -812,7 +843,7 @@ void main() {
   test('manually constructed invalid DTO cannot bypass format checks', () {
     final source = sampleDto();
     final invalidVersion = KeepMyCarDataDto(
-      formatVersion: 2,
+      formatVersion: 3,
       ownerBirthMonth: goldenSample.owner.birthMonth.toString(),
       car: source.car,
       planConditions: source.planConditions,
@@ -915,4 +946,11 @@ void main() {
     expect(result.repairIncludedMonthlyYen, 29808);
     expect(result.additionalMonthlyYen, 18467);
   });
+}
+
+Map<String, dynamic> v2Wire(Map<String, dynamic> data) {
+  final result = jsonDecode(jsonEncode(data)) as Map<String, dynamic>;
+  result['formatVersion'] = 2;
+  section(result, 'planConditions')['fundingPlanEnabled'] = true;
+  return result;
 }

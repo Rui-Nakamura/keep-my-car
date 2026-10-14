@@ -15,6 +15,8 @@ typedef ReserveCalculator = RepairReserveCalculationResult Function({
   required List<PlannedExpense> plannedExpenses,
 });
 
+enum FundingPlanStatus { unused, needsReview, calculable, calculationFailed }
+
 enum HomeUpdate { timeline, reserve, both }
 
 enum ExpenseChange { added, updated, deleted, unchanged }
@@ -35,6 +37,8 @@ class PlanSession {
     this._timelineCalculator = calculateFutureTimeline,
     this._reserveCalculator = calculateRepairReserve,
   }) : _plannedExpenses = List.unmodifiable(plannedExpenses) {
+    final errors = validatePlanConditionsInvariants(_conditions);
+    if (errors.isNotEmpty) throw ArgumentError.value(errors, 'conditions');
     final ids = <int>{};
     for (final expense in plannedExpenses) {
       if (!ids.add(expense.id)) throw ArgumentError('Duplicate expense ID');
@@ -62,6 +66,12 @@ class PlanSession {
   PlanConditions get conditions => _conditions;
   List<TimelineYearData> get timeline => _timeline;
   RepairReserveCalculationResult get reserveResult => _reserveResult;
+  FundingPlanStatus get fundingPlanStatus => switch (_reserveResult) {
+    RepairReserveUnused() => FundingPlanStatus.unused,
+    RepairReserveNeedsReview() => FundingPlanStatus.needsReview,
+    RepairReserveSuccess() => FundingPlanStatus.calculable,
+    RepairReserveFailure() => FundingPlanStatus.calculationFailed,
+  };
   bool get timelinePending => _timelinePending;
   bool get reservePending => _reservePending;
   int? get reserveDeltaYen => _reserveDeltaYen;
@@ -228,9 +238,35 @@ class PlanSession {
     return errors;
   }
 
+  Map<PlanField, PlanInputError> applyBasic(PlanConditions input) {
+    final next = basicPlanCandidate(input, _conditions);
+    final errors = validateBasicPlanConditions(
+      next,
+      birthMonth: birthMonth,
+      referenceMonth: referenceMonth,
+    );
+    if (errors.isEmpty) adoptValidatedConditions(next);
+    return errors;
+  }
+
+  Map<PlanField, PlanInputError> applyFunding(PlanConditions input) {
+    final next = fundingPlanCandidate(input, _conditions);
+    final errors = next.fundingPlanEnabled
+        ? validateFundingPlanConditions(
+            next,
+            birthMonth: birthMonth,
+            referenceMonth: referenceMonth,
+          )
+        : <PlanField, PlanInputError>{};
+    if (errors.isEmpty) adoptValidatedConditions(next);
+    return errors;
+  }
+
   /// Application-internal commit of conditions validated before saving.
   /// Keeps existing calculation and pending/difference rules.
   void adoptValidatedConditions(PlanConditions next) {
+    final errors = validatePlanConditionsInvariants(next);
+    if (errors.isNotEmpty) throw ArgumentError.value(errors, 'conditions');
     if (next == _conditions) return;
     final old = _conditions;
     final oldIncluded = includedExpenses;
@@ -242,6 +278,20 @@ class PlanSession {
         next.currentMileageKm != old.currentMileageKm ||
         next.annualMileageKm != old.annualMileageKm;
     final reserveAffected =
+        next.fundingPlanEnabled != old.fundingPlanEnabled ||
+        // Reevaluate validity even when ownership changes include no expenses.
+        // If validity and monetary inputs are unchanged, reuse the same result.
+        (next.ownershipTargetAge != old.ownershipTargetAge &&
+            fundingPlanPreconditionError(
+                  next,
+                  birthMonth: birthMonth,
+                  referenceMonth: referenceMonth,
+                ) !=
+                fundingPlanPreconditionError(
+                  old,
+                  birthMonth: birthMonth,
+                  referenceMonth: referenceMonth,
+                )) ||
         expensesAffected ||
         next.currentCarFundYen != old.currentCarFundYen ||
         next.reserveTargetAge != old.reserveTargetAge ||
@@ -328,6 +378,7 @@ class PlanSession {
   }
 
   void acknowledgeReserve() {
+    if (_reserveResult is! RepairReserveSuccess) return;
     _reservePending = false;
     _reserveDeltaYen = null;
   }
@@ -348,11 +399,25 @@ class PlanSession {
     ),
   );
 
-  RepairReserveCalculationResult _calculateReserve() => _reserveCalculator(
-    referenceMonth: referenceMonth,
-    currentCarFundYen: _conditions.currentCarFundYen,
-    reserveTargetMonth: reserveMonth(birthMonth, _conditions.reserveTargetAge),
-    largeRepairReserveYen: _conditions.largeRepairReserveYen,
-    plannedExpenses: includedExpenses,
-  );
+  RepairReserveCalculationResult _calculateReserve() {
+    if (!_conditions.fundingPlanEnabled) return const RepairReserveUnused();
+    if (fundingPlanPreconditionError(
+          _conditions,
+          birthMonth: birthMonth,
+          referenceMonth: referenceMonth,
+        ) !=
+        null) {
+      return const RepairReserveNeedsReview();
+    }
+    return _reserveCalculator(
+      referenceMonth: referenceMonth,
+      currentCarFundYen: _conditions.currentCarFundYen,
+      reserveTargetMonth: reserveMonth(
+        birthMonth,
+        _conditions.reserveTargetAge,
+      ),
+      largeRepairReserveYen: _conditions.largeRepairReserveYen,
+      plannedExpenses: includedExpenses,
+    );
+  }
 }

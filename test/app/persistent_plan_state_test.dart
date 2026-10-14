@@ -287,7 +287,7 @@ void main() {
           Loaded() => StartupPhase.ready,
           Recovered() => StartupPhase.recovered,
           NoData() => StartupPhase.noData,
-          LoadFailure() => StartupPhase.failure,
+          LoadFailure() || VersionProtected() => StartupPhase.failure,
         });
         if (result is Loaded || result is Recovered) {
           expect(state.car!.name, sampleSnapshot().car.name);

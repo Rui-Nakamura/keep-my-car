@@ -82,6 +82,7 @@ class _PlanSettingsScreenState extends State<PlanSettingsScreen> {
   }
 
   PlanConditions _candidate() => PlanConditions(
+    fundingPlanEnabled: widget.conditions.fundingPlanEnabled,
     currentMileageKm:
         _parse(_controllers[PlanField.currentMileage]!.text) ??
         widget.conditions.currentMileageKm,
