@@ -92,7 +92,7 @@ void main() {
       expect(find.text('10月時点'), findsOneWidget);
       expect(find.text('現在'), findsOneWidget);
       expect(find.byIcon(Icons.flag_outlined), findsNothing);
-      expect(find.text('保有目標を見直す'), findsNothing);
+      expect(find.text('保有目標を見直す'), findsOneWidget);
       expect(cached.single.totalYen, 0);
       expect(cached.single.expenses, isEmpty);
       for (final expense in original) {

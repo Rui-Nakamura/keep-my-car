@@ -33,6 +33,7 @@ class FutureTimelineScreen extends StatelessWidget {
     required this.hasSavedPlannedExpenses,
     this.updatePending = false,
     this.onViewed,
+    this.onReviewTarget,
   });
 
   final List<TimelineYearData> years;
@@ -43,6 +44,7 @@ class FutureTimelineScreen extends StatelessWidget {
   final bool hasSavedPlannedExpenses;
   final bool updatePending;
   final VoidCallback? onViewed;
+  final VoidCallback? onReviewTarget;
 
   // Display metadata only; yearly values and expense totals remain calculated data.
   YearMonth _evaluationMonth(int year) =>
@@ -143,6 +145,24 @@ class FutureTimelineScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        '今後の計画を確認するには保有目標を見直してください。',
+                        style: text.bodyMedium,
+                      ),
+                      if (onReviewTarget != null) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _RoadmapColors.text,
+                            side: const BorderSide(
+                              color: _RoadmapColors.border,
+                            ),
+                          ),
+                          onPressed: onReviewTarget,
+                          child: const Text('保有目標を見直す'),
+                        ),
+                      ],
                       if (hasSavedPlannedExpenses) ...[
                         const SizedBox(height: AppSpacing.md),
                         Text(

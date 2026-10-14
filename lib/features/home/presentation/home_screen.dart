@@ -73,17 +73,42 @@ class HomeScreen extends StatelessWidget {
     ),
   );
 
+  Future<void> _reviewTarget(BuildContext context) async {
+    var applied = false;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => PlanSettingsScreen(
+          conditions: session.conditions,
+          birthMonth: session.birthMonth,
+          referenceMonth: session.referenceMonth,
+          onApply: (next) async {
+            final errors = await onApply(next);
+            if (errors.isEmpty) applied = true;
+            return errors;
+          },
+          onDataManagement: onDataManagement,
+        ),
+      ),
+    );
+    // Preserve newly generated HomeUpdate and pending flags on return.
+    if (applied && context.mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
   void _expenses(BuildContext context) => _open(
     context,
     PlannedExpensesScreen(
       session: session,
       onChanged: onExpensesChanged,
+      onReviewTarget: () => _reviewTarget(context),
       onSaveExpense: onSaveExpense,
       onDeleteExpense: onDeleteExpense,
     ),
   );
 
   Future<void> _addExpense(BuildContext context) async {
+    if (session.ownershipTargetReached) return;
     onNavigate();
     final change = await Navigator.of(context).push<ExpenseChange>(
       MaterialPageRoute<ExpenseChange>(
@@ -260,6 +285,7 @@ class HomeScreen extends StatelessWidget {
                     hasSavedPlannedExpenses: session.plannedExpenses.isNotEmpty,
                     updatePending: session.timelinePending,
                     onViewed: onTimelineViewed,
+                    onReviewTarget: () => _reviewTarget(context),
                   ),
                 ),
                 child: const Text('未来タイムラインを見る'),

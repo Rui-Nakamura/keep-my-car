@@ -15,9 +15,11 @@ class PlannedExpensesScreen extends StatefulWidget {
     required this.onChanged,
     required this.onSaveExpense,
     required this.onDeleteExpense,
+    this.onReviewTarget,
   });
 
   final PlanSession session;
+  final VoidCallback? onReviewTarget;
   final VoidCallback onChanged;
   final SaveExpenseRequest onSaveExpense;
   final DeleteExpenseRequest onDeleteExpense;
@@ -28,6 +30,7 @@ class PlannedExpensesScreen extends StatefulWidget {
 
 class _PlannedExpensesScreenState extends State<PlannedExpensesScreen> {
   Future<void> _edit([PlannedExpense? expense]) async {
+    if (widget.session.ownershipTargetReached && expense == null) return;
     final change = await Navigator.of(context).push<ExpenseChange>(
       MaterialPageRoute(
         builder: (_) => PlannedExpenseEditor(
@@ -79,7 +82,7 @@ class _PlannedExpensesScreenState extends State<PlannedExpensesScreen> {
           OutlinedButton(
             key: ValueKey('edit-expense-${expense.id}'),
             onPressed: () => _edit(expense),
-            child: const Text('編集'),
+            child: Text(widget.session.ownershipTargetReached ? '確認' : '編集'),
           ),
         ],
       ),
@@ -125,7 +128,29 @@ class _PlannedExpensesScreenState extends State<PlannedExpensesScreen> {
               ),
               Text('計画外の予定費：${outside.length}件', style: text.bodyMedium),
               Text('${expenses.length}件の予定', style: text.bodyMedium),
-              if (expenses.isEmpty) ...[
+              if (widget.session.ownershipTargetReached) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Text('保有目標に到達しています', style: text.titleLarge),
+                Text(
+                  '設定している保有目標：${widget.session.conditions.ownershipTargetAge}歳・${formatMonth(widget.session.ownershipTargetMonth)}',
+                  style: text.bodyLarge,
+                ),
+                Text(
+                  '追加・変更するには保有目標を見直してください。登録済みの予定費は確認・削除できます。',
+                  style: text.bodyMedium,
+                ),
+                if (widget.onReviewTarget != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  OutlinedButton(
+                    onPressed: widget.onReviewTarget,
+                    child: const Text('保有目標を見直す'),
+                  ),
+                ],
+                if (expenses.isEmpty) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Text('登録済みの予定費は0件です', style: text.bodyLarge),
+                ],
+              ] else if (expenses.isEmpty) ...[
                 const SizedBox(height: AppSpacing.xxl),
                 Text('予定費はまだありません', style: text.bodyLarge),
                 Text('将来予定している車検やタイヤ交換などを登録できます', style: text.bodyMedium),
@@ -134,10 +159,11 @@ class _PlannedExpensesScreenState extends State<PlannedExpensesScreen> {
                 Text('保有目標までの予定費はありません', style: text.bodyLarge),
               ],
               const SizedBox(height: AppSpacing.lg),
-              FilledButton(
-                onPressed: () => _edit(),
-                child: const Text('予定費を追加'),
-              ),
+              if (!widget.session.ownershipTargetReached)
+                FilledButton(
+                  onPressed: () => _edit(),
+                  child: const Text('予定費を追加'),
+                ),
               if (years.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.section),
                 Semantics(

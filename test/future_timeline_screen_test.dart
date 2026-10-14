@@ -58,6 +58,7 @@ Future<List<TimelineYearData>> pumpTimeline(
   YearMonth? target,
   YearMonth? birth,
   YearMonth? registration,
+  VoidCallback? onReviewTarget,
 }) async {
   tester.view.physicalSize = Size(width, 800);
   tester.view.devicePixelRatio = 1;
@@ -96,6 +97,7 @@ Future<List<TimelineYearData>> pumpTimeline(
         child: child!,
       ),
       home: FutureTimelineScreen(
+        onReviewTarget: onReviewTarget,
         years: years,
         referenceMonth: referenceMonth,
         ownershipTargetMonth: ownershipTargetMonth,
@@ -174,6 +176,33 @@ RenderParagraph expectFullyLaidOut(
 }
 
 void main() {
+  testWidgets(
+    'reached Timeline 360px scale 3 scrolls to and taps review callback',
+    (tester) async {
+      var calls = 0;
+      await pumpTimeline(
+        tester,
+        [],
+        reference: const YearMonth(2040, 5),
+        target: const YearMonth(2040, 4),
+        width: 360,
+        scale: 3,
+        onReviewTarget: () {
+          calls++;
+        },
+      );
+      final button = find.widgetWithText(OutlinedButton, '保有目標を見直す');
+      expect(calls, 0);
+      await tester.ensureVisible(button);
+      await tester.pumpAndSettle();
+      expect(button.hitTestable(), findsOneWidget);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      expectSafeLayout(tester);
+    },
+  );
+
   setUpAll(() async {
     // Use Flutter's cached Android font for amount line-break tests, without
     // replacing the square test font used by the existing regression tests.
@@ -1029,7 +1058,10 @@ void main() {
           const retained = '登録済みの予定費は削除されていません。「愛車予定費」から確認できます。';
           expect(find.text(retained), findsNothing);
           expect(find.textContaining('「愛車予定費」'), findsNothing);
-          expect(find.text('保有目標を見直す'), findsNothing);
+          expect(
+            find.text('保有目標を見直す'),
+            findsNothing, // No callback was supplied to this standalone screen.
+          );
           final labels = [
             targetCase.label,
             if (targetCase.current) '今月が保有目標です',

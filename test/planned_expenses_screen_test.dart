@@ -130,7 +130,7 @@ void main() {
   );
 
   testWidgets(
-    'past target: later-than-target reason wins even for overdue rows; CRUD remains available',
+    'past target: later-than-target reason wins even for overdue rows; confirmation replaces editing and adding',
     (tester) async {
       await pumpExpenses(tester, [
         expense('両方', 2040, 5, 100),
@@ -138,12 +138,12 @@ void main() {
       ], reference: const YearMonth(2041, 1));
       expect(summary(tester), '0円');
       expect(find.text('計画外の予定費：2件'), findsOneWidget);
-      expect(find.text('保有目標までの予定費はありません'), findsOneWidget);
+      expect(find.text('保有目標に到達しています'), findsOneWidget);
       expect(find.text('計画内の予定費'), findsNothing);
       expect(find.text('保有目標より先の予定です'), findsOneWidget);
       expect(find.text('予定年月が過ぎています'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, '予定費を追加'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, '編集'), findsNWidgets(2));
+      expect(find.widgetWithText(FilledButton, '予定費を追加'), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, '確認'), findsNWidgets(2));
     },
   );
 
