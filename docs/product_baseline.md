@@ -126,6 +126,8 @@ v1／v2はphotoId=nullとして既存検証のまま読み込み、読込みの�
 
 既存Safe Save・rollbackを維持し、資金計画の期限超過・保有期間外を破損扱いしない。未対応の将来versionは専用の保護状態でアプリ更新を案内し、元データを変更する操作を止める。正常currentを閲覧できる場合も未対応backupを保護する保存制限を案内する。正常current＋未対応backupのManual Exportは、正常な正式snapshotを書き出す既存安全条件のもとで許可し、内部ファイルを変更せず保存制限を維持する。未対応backup自体の救出・修復とは扱わない。通常の破損データのRecovery・Failure導線は維持する。version識別、形式別validation、移行、Import、保存前の保護、Recoveryの詳細は [current_step.mdのStep 15-E](current_step.md) を継承し、内部Persistence v3・写真参照・旧version互換と明示保存時の移行は同文書のStep 15-F-Impl-01仕様を優先する。電源断まで含む完全transaction保証は追加しない。
 
+Step 15-F-Impl-02では、Dart共通のJPEG／静止PNG処理、Orientation 1～8補正、透過の白背景合成、元メタデータを持たないJPEG生成、Application Supportの専用写真保存、Saved後のphotoId切替、current／backup・利用中参照を保護するcleanupを追加する。内部v3・既存Safe Save／Recovery・旧外部JSON Backupの契約は維持する。画像入力上限は実機確認を伴う正式受入を保留し、本番default値を設けない。写真UI・Picker・ZIP Backupは含めない。詳細は [current_step.mdのStep 15-F-Impl-02](current_step.md) を正本とする。
+
 ## Technical Baseline
 
 - Flutter

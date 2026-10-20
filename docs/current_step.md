@@ -1,6 +1,6 @@
 # Phase 05 Step 15 — MVP情報設計・機能優先順位再整理
 
-Status：Step 15-Aの影響調査、Step 15-Bの計算の土台、Step 15-CのHome新設計、およびStep 15-D3まで正式完了。Step 15-E-3の主要Android技術受入、Backup v2 Export／Import・再起動後PersistenceはPO承認済みPASS。特殊ケースの実機未実施範囲と手元UXの改善事項は下記E-3受入記録に従う。Step 15-F-Impl-01は内部Persistence v3・互換性維持の実装開始を承認した工程であり、この開始承認は実装の正式受入・工程の正式完了を意味しない。承認済み保存契約は下記F-Impl-01仕様に従う。Fの具体的なUI仕様・実装の承認とは区別する。各工程の当時の受入記録と持ち越し事項は履歴として維持する。
+Status：Step 15-Aの影響調査、Step 15-Bの計算の土台、Step 15-CのHome新設計、およびStep 15-D3まで正式完了。Step 15-E-3の主要Android技術受入、Backup v2 Export／Import・再起動後PersistenceはPO承認済みPASS。特殊ケースの実機未実施範囲と手元UXの改善事項は下記E-3受入記録に従う。Step 15-F-Impl-01（内部Persistence v3・互換性維持）は正式完了。現在のF-Impl-02は下記承認済み仕様に従う写真保存・Recovery安全管理基盤の実装・検証工程であり、本番UIには未接続。本番入力profileの確定とAndroid／iOS実機受入は未完了で、基盤実装・自動検査をこれらの正式受入完了とは扱わない。Fの写真UI・Picker・ZIP Backup等の後続工程とは区別する。各工程の当時の受入記録と持ち越し事項は履歴として維持する。
 
 D1由来の後続UX課題は下記「後続課題」の引継ぎ先に従う。青／緑輪郭通知を含むStep 15-F対象のUI/UXはFで再評価し、D1〜D3の正式完了判定・既存受入結果は変更しない。
 
@@ -995,6 +995,48 @@ Step 13・14から持ち越した画面の見やすさ、入力の分かりや�
 - 外部JSON Backupは内部versionと独立し、最新Exportは `exportFormatVersion=2`、Importはv1／v2のままとする。外部version=3は引き続きunsupportedとする。
 - Mapperの `toDto()` は `photoId` を必須named引数とし、内部保存では既存値、外部Exportではnullを明示する。内部Mapperがv3 DTOを返しても、Exportは共通Payload Codecへ外部v2を明示指定する。既存v2出力schemaにphotoIdを含めず、v1／v2の既存schema・検証・Import互換性を維持する。
 - 旧外部JSON BackupのImportは完全置換であり、photoId=nullとして保存・採用する。既存写真参照を引き継がない。完全validation、Safe Save成功前の正式状態保護、失敗時rollback・状態不明時の保護は維持する。
+
+---
+
+## Step 15-F-Impl-02：愛車写真保存・Recovery安全管理
+
+### 工程範囲と画像処理
+
+- `image: 4.12.0` と `uuid: 4.6.0` を固定指定する。前者はDart共通処理であり、`flutter_image_compress`、Photo Picker、独自Native変換を導入しない。
+- 入力はJPEG／静止PNG。HEIC、GIF等の対応外形式、APNGは安全に拒否する。元ファイルは読取りのみで、変更・削除しない。
+- 画像処理はUI isolateから分離し、入力bytesではなくパスをworkerへ渡す。同一processorの変換は直列化し、取消時はworkerを終了する。結果bytesはTransferableTypedDataで受け取る。
+- ファイル長を確認してから上限内のbytesだけ読み、寸法・画素数をピクセル展開前に検査する。JPEGは`maxPixels`を明示し、長辺1600pxの情報を残せる最大のscale（1／2／4／8）で縮小デコードする。4.12.0のJPEG decoderはOrientation 1～8を適用してtagを解除するため、重ねて補正しない。
+- PNGはフルデコードの負荷を別途制限する。chunk境界・CRC・IHDR寸法を確認し、APNGを拒否する。圧縮された付帯メタデータの展開を避けるため、ピクセル用chunkだけをdecoderへ渡す。eXIfは上限64KiBのIFD0 Orientation値だけを境界検査して読み、1～8を一度だけ補正する。
+- アスペクト比を維持し、拡大せず長辺最大1600pxへ縮小する。完全透明・半透明は縮小補間前に白背景へ合成して不可視色の混入を防ぎ、新しいRGB画像へピクセルだけ移す。元のGPS、EXIF、撮影日時、カメラ情報、ICC、text、thumbnail等を引き継がない。
+- JPEG品質85、最大3MiB。出力後はJPEG markerを独立検査し、thumbnailなしJFIF以外のAPP情報・COM・末尾余分bytesを拒否し、寸法検査と完全再decodeも行う。容量超過は失敗とし、品質を大幅に下げる再試行はしない。
+
+### 写真I/Oと正式参照
+
+- 保存先はApplication Supportの`photos/<uuid-v4>.jpg`。JSONへ絶対パスを保存しない。photoIdの既存厳密検証と内部Persistence v3を維持する。
+- 写真用tmpは`<uuid-v4>.photo-tmp`とし、JSON用tmpから分離する。tmpを排他的に新規作成し、flush書込み後に実ファイルのbytes一致・JPEG再検証を行う。正式名も排他的に予約し、自分が作った空の予約だけをtmpのrenameで置き換え、正式ファイルを再検証する。既存写真・tmp・link・directoryの衝突を上書きしない。
+- 信頼するdirectory providerが返すApplication Supportを正規pathに確定する。OSが管理する祖先のalias（iOSの`/var`等）を許容する一方、保存root自体・photos directory・対象fileのsymlinkを拒否し、管理領域外へ参照しない。cleanupは管理対象のUUID名の通常fileだけに限定する。単一process・単一所有者のアプリ専用directoryを前提とし、別processが同時にfilesystemを差し替える攻撃や電源断まで含む完全transaction保証は追加しない。
+- 正式photoIdはPersistentPlanStateが所有する。新写真の変換・ファイル再検証完了後、共通保存排他のもとで最新正式snapshotのphotoIdだけを変更し、既存Safe SaveのSaved後だけ採用する。Car Domain・PlanSessionの計算結果・予定費ID・通知状態は写真変更では更新しない。
+- 削除はphotoId=nullをSafe Saveし、Saved後だけ正式参照を解除する。旧写真の即時物理削除は行わない。写真欠損・破損は写真読取不能として扱い、計画JSON・予定費を破損扱いにしない。
+
+### 非同期競合・Recovery・cleanup
+
+- 将来のPicker待機開始前に要求tokenを取得できるAPIを設ける。要求は一度だけ処理でき、変更・再選択・削除・取消・実行されたreload・Import開始・disposeで古い要求を失効させる。
+- 変換中の通常編集を許可する。変換完了時に通常保存中なら完了を待ち、要求の有効性を再確認して最新snapshotを取得する。既にSafe Saveへ受理された保存は完了させ、後続の保存と直列化する。通常保存側の競合拒否契約を維持する。
+- current優先／backup Recovery、tmp非採用、Recovery時JSON自動修復禁止を維持する。写真変更・削除・旧JSON Import後もbackupに残る写真を保護する。
+- cleanup用のRepository境界はcurrent／backup双方を完全decodeし、その参照検査から写真削除までRepositoryの排他を保持する。いずれかが不正・不明・future・読取失敗なら削除しない。
+- 写真準備・保存候補・Export等で利用中の写真はleaseで保護する。同期protectはcleanup中の新規取得を拒否し、非同期の写真要求・readはcleanup完了を待ってから取得する。要求の世代・取消・dispose・version保護を待機後に再確認し、検査／削除との競合を防ぐ。readは準備中も完了を待ち、一時的busyを欠損へ変換しない。画像破損由来のImageExceptionはPhotoFailureへ変換し、欠損・破損はnullとする一方、不明なプログラムエラーは握り潰さない。rollback失敗や部分discard後はcleanupを止め、正式reloadで保存状態を確認するまで保護する。API例外だけを根拠に新写真を即時削除しない。
+- cleanup中の通常保存・Import・Exportの競合は、既存の共通排他どおり拒否する。正式保存済みデータを失う動作とは区別し、保存全体の自動待ち行列は導入しない。cleanup／写真保存の排他解除後は通知し、Import／Export利用可否を再評価可能にする。
+- 成功した保存後と、写真要求終了後の必要な整理、または明示的cleanupでのみ実行する。常駐監視・定期処理は設けない。未参照と確認できるUUID名の写真・stale写真tmpだけを削除し、不明file・link・subdirectoryには触れない。cleanup失敗を成功済み計画保存の失敗へ変更しない。
+- 外部JSON Backup v1／v2とImport時photoId=nullの完全置換を維持する。ZIP Codec／Export／Importはこの工程に含めない。
+
+### 入力上限・実装上の制限と受入境界
+
+- ファイル容量、JPEG／PNG別の画素数、最大辺長は`PhotoInputLimits`の明示的な設定を必須とする。根拠のない本番default値を置かない。25MiB・5000万画素、8MiB・800万画素のいずれも正式上限として採用しない。
+- PC検証profileは64MiB・JPEG6400万画素・PNG2400万画素・最大辺16000pxであり、Android／iOSの安全上限や製品の承認値ではない。通常画像、1200万／4800万画素JPEG、1200万画素透過PNG、異常画像を検証し、PC計測とコード上の推定を区別する。再現用probeは`tool/photo_memory_probe.dart`に置く。
+- JPEG縮小デコードでもprogressive等の形式による作業領域差があり、PNGはフル展開する。worker終了はメモリ不足に対する端末全体の安全保証ではない。実機でのピークメモリ・連続処理・各種実写真の確認と入力上限の正式受入は別途必要とし、保留する。
+- AppはPhotoLibraryの注入境界を持つ。本番入力profileを暗黙に確定させないため、未注入時は写真操作を有効化しない。写真表示・設定／削除UI・PickerはF-Impl-06以降とし、この工程で先行実装しない。
+- Android／iOSのOSバックアップ設定は変更しない。現在のApplication SupportはOS標準バックアップ対象になり得るため、アプリ内クラウド同期を実装しないことと端末のOSバックアップを区別する。OSバックアップの実際の復元・写真とJSONの整合性は実機未検証とする。
+- 後続の正式受入では、実写真・形式差を含む端末メモリ計測に基づく本番入力profile、Android／iOSでの写真ファイル保存・再起動・Recovery・OSバックアップ復元、F-Impl-06の写真UI接続をそれぞれ確認する。PC自動検査や画像縮小倍率の検証だけでこれらをPASSとはしない。
 
 ---
 

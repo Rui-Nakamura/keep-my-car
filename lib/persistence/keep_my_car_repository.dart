@@ -16,6 +16,36 @@ class KeepMyCarRepository {
   static const _mapper = KeepMyCarDataMapper();
   static const _codec = KeepMyCarJsonCodec();
   bool _busy = false;
+  bool _photoCleanupUncertain = false;
+
+  T _resolvedLoad<T extends LoadResult>(T result) {
+    _photoCleanupUncertain = false;
+    return result;
+  }
+
+  /// Inspect BOTH committed JSON files and hold the repository guard through
+  /// deletion. Unknown/corrupt/future/unreadable data prevents all cleanup.
+  Future<bool> withPhotoReferencesForCleanup(
+    Future<void> Function(Set<String> references) cleanup,
+  ) async {
+    if (_busy || _photoCleanupUncertain) return false;
+    _busy = true;
+    try {
+      final ids = <String>{};
+      for (final file in [DataFile.current, DataFile.backup]) {
+        final bytes = await _storage.read(file);
+        if (bytes == null) continue;
+        final id = _decode(bytes).photoId;
+        if (id != null) ids.add(id);
+      }
+      await cleanup(Set.unmodifiable(ids));
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _busy = false;
+    }
+  }
 
   PersistenceIssue _busyIssue() => PersistenceIssue(
     PersistenceStage.busy,
@@ -60,21 +90,30 @@ class KeepMyCarRepository {
           final futureVersion = _futureVersion(backup);
           if (futureVersion != null) {
             return currentData != null
-                ? Loaded(currentData, unsupportedBackupVersion: futureVersion)
+                ? _resolvedLoad(
+                    Loaded(
+                      currentData,
+                      unsupportedBackupVersion: futureVersion,
+                    ),
+                  )
                 : VersionProtected(file: 'backup', version: futureVersion);
           }
-          if (currentData != null) return Loaded(currentData);
-          return Recovered(
-            _decode(backup),
-            currentIssue: issues.isEmpty ? null : issues.first,
+          if (currentData != null) return _resolvedLoad(Loaded(currentData));
+          return _resolvedLoad(
+            Recovered(
+              _decode(backup),
+              currentIssue: issues.isEmpty ? null : issues.first,
+            ),
           );
         }
       } catch (error, stack) {
         issues.add(PersistenceIssue(PersistenceStage.readBackup, error, stack));
       }
-      if (currentData != null) return Loaded(currentData);
+      if (currentData != null) return _resolvedLoad(Loaded(currentData));
       // Temp is never read, promoted or deleted during load.
-      return issues.isEmpty ? const NoData() : LoadFailure(issues);
+      return issues.isEmpty
+          ? _resolvedLoad(const NoData())
+          : LoadFailure(issues);
     } finally {
       _busy = false;
     }
@@ -147,6 +186,7 @@ class KeepMyCarRepository {
           );
         }
       }
+      if (rollbackIssues.isNotEmpty) _photoCleanupUncertain = true;
       return SaveFailure(
         PersistenceIssue(stage, error, stack),
         rollbackIssues: rollbackIssues,
@@ -187,6 +227,7 @@ class KeepMyCarRepository {
       return const Saved();
     } catch (error, stack) {
       final issue = PersistenceIssue(PersistenceStage.discard, error, stack);
+      if (deletionStarted) _photoCleanupUncertain = true;
       return SaveFailure(issue, rollbackIssues: deletionStarted ? [issue] : []);
     } finally {
       _busy = false;

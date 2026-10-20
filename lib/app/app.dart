@@ -11,6 +11,7 @@ import '../features/home/presentation/home_screen.dart';
 import '../features/initial_setup/presentation/initial_setup_screen.dart';
 import '../persistence/keep_my_car_repository.dart';
 import '../persistence/local_file_storage.dart';
+import '../photo/photo_library.dart';
 import 'persistent_plan_state.dart';
 import 'screen_success_feedback.dart';
 import 'save_request.dart';
@@ -24,11 +25,13 @@ class KeepMyCarApp extends StatefulWidget {
     this.now,
     this.sessionFactory,
     this.backupGateway,
+    this.photos,
   });
   final KeepMyCarRepository? repository;
   final DateTime Function()? now;
   final SessionFactory? sessionFactory;
   final BackupFileGateway? backupGateway;
+  final PhotoLibrary? photos;
   @override
   State<KeepMyCarApp> createState() => _KeepMyCarAppState();
 }
@@ -51,6 +54,7 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
           KeepMyCarRepository(IoLocalFileStorage.applicationSupport()),
       referenceMonth: YearMonth(now.year, now.month),
       sessionFactory: widget.sessionFactory,
+      photos: widget.photos,
     )..addListener(changed);
     transfer = BackupTransfer(
       state: state,

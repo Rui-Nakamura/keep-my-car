@@ -12,6 +12,8 @@ import '../persistence/keep_my_car_data_mapper.dart';
 import '../persistence/keep_my_car_repository.dart';
 import '../persistence/keep_my_car_json_codec.dart';
 import '../persistence/persistence_result.dart';
+import '../photo/photo_library.dart';
+import '../photo/photo_processor.dart';
 import 'plan_session.dart';
 import 'save_request.dart';
 
@@ -22,6 +24,14 @@ typedef SessionFactory = PlanSession Function(
   YearMonth referenceMonth,
 );
 
+class PhotoRequest {
+  PhotoRequest._(this._owner, this._generation);
+  final PersistentPlanState _owner;
+  final int _generation;
+  final _cancellation = PhotoCancellation();
+  bool _started = false;
+}
+
 /// Owned once by the app. Candidates never mutate the formal session until save
 /// succeeds. All reloads, including uncertainty recovery, use the same repository.
 class PersistentPlanState extends ChangeNotifier {
@@ -29,11 +39,16 @@ class PersistentPlanState extends ChangeNotifier {
     required this.repository,
     required this.referenceMonth,
     SessionFactory? sessionFactory,
+    this.photos,
   }) : _sessionFactory = sessionFactory ?? _newSession;
 
   final KeepMyCarRepository repository;
   final YearMonth referenceMonth;
   final SessionFactory _sessionFactory;
+  final PhotoLibrary? photos;
+  int _photoGeneration = 0;
+  PhotoRequest? _photoRequest;
+  Completer<void>? _idle;
   StartupPhase phase = StartupPhase.loading;
   PlanSession? session;
   Car? car;
@@ -42,6 +57,135 @@ class PersistentPlanState extends ChangeNotifier {
   String? get photoId => _photoId;
   bool _busy = false;
   bool _disposed = false;
+
+  void _beginOperation() {
+    _busy = true;
+    _idle = Completer<void>();
+  }
+
+  void _endOperation() {
+    _busy = false;
+    _idle?.complete();
+    _idle = null;
+  }
+
+  void cancelPhotoChange() {
+    _photoGeneration++;
+    _photoRequest?._cancellation.cancel();
+    _photoRequest = null;
+  }
+
+  bool _validPhotoRequest(PhotoRequest request) =>
+      identical(request._owner, this) &&
+      identical(request, _photoRequest) &&
+      request._generation == _photoGeneration &&
+      !_disposed &&
+      !request._cancellation.isCancelled &&
+      !saveRestricted &&
+      (phase == StartupPhase.ready || phase == StartupPhase.recovered);
+
+  /// Start BEFORE any future picker wait. Selection UI is deliberately absent.
+  PhotoRequest beginPhotoChange() {
+    if (photos == null ||
+        _disposed ||
+        saveRestricted ||
+        (phase != StartupPhase.ready && phase != StartupPhase.recovered)) {
+      throw const SaveRequestFailure();
+    }
+    cancelPhotoChange();
+    return _photoRequest = PhotoRequest._(this, _photoGeneration);
+  }
+
+  Future<bool> changePhoto(String sourcePath) =>
+      completePhotoChange(beginPhotoChange(), sourcePath);
+
+  /// false means superseded/cancelled. Failures never remove a candidate merely
+  /// because Safe Save's API threw: the on-disk result may already reference it.
+  Future<bool> completePhotoChange(
+    PhotoRequest request,
+    String sourcePath,
+  ) async {
+    if (!_validPhotoRequest(request) || request._started) return false;
+    request._started = true;
+    final library = photos!;
+    final id = library.newId();
+    PhotoLease? lease;
+    try {
+      // A returning selection must not be consumed by a transient cleanup busy.
+      // Wait on the existing gate, then recheck generation/dispose/protection.
+      while (_busy && _validPhotoRequest(request)) {
+        await Future.any([_idle!.future, request._cancellation.cancelled]);
+      }
+      if (!_validPhotoRequest(request)) return false;
+      lease = await library.acquireLease(
+        id,
+        cancellation: request._cancellation,
+      );
+      if (!_validPhotoRequest(request)) return false;
+      await library.prepare(id, sourcePath, request._cancellation);
+      while (_busy && _validPhotoRequest(request)) {
+        await Future.any([_idle!.future, request._cancellation.cancelled]);
+      }
+      if (!_validPhotoRequest(request)) return false;
+      // No await between reading the latest formal snapshot and taking _persist's
+      // guard. Normal edits made during conversion are therefore retained.
+      await _persist(_withPhoto(id), () {});
+      return true;
+    } on PhotoFailure catch (error) {
+      if (error.issue == PhotoIssue.cancelled) return false;
+      rethrow;
+    } finally {
+      lease?.release();
+      await cleanupPhotos();
+    }
+  }
+
+  RestoredCarData _withPhoto(String? id) {
+    final latest = snapshot;
+    return (
+      photoId: id,
+      ownerBirthMonth: latest.ownerBirthMonth,
+      car: latest.car,
+      planConditions: latest.planConditions,
+      plannedExpenses: latest.plannedExpenses,
+    );
+  }
+
+  Future<void> deletePhoto() async {
+    if (_disposed ||
+        saveRestricted ||
+        _busy ||
+        (phase != StartupPhase.ready && phase != StartupPhase.recovered)) {
+      throw const SaveRequestFailure();
+    }
+    // Also invalidate a pending replacement when no photo is currently set.
+    cancelPhotoChange();
+    if (_photoId == null) return;
+    await _persist(_withPhoto(null), () {});
+  }
+
+  Future<bool> _cleanupPhotoFiles() async {
+    if (photos == null ||
+        _disposed ||
+        saveRestricted ||
+        (phase != StartupPhase.ready && phase != StartupPhase.recovered)) {
+      return false;
+    }
+    return repository.withPhotoReferencesForCleanup(photos!.cleanup);
+  }
+
+  Future<bool> cleanupPhotos() async {
+    if (_busy) return false;
+    _beginOperation();
+    _notify();
+    try {
+      return await _cleanupPhotoFiles();
+    } finally {
+      _endOperation();
+      _notify();
+    }
+  }
+
   VersionProtected? versionProtection;
   int? unsupportedBackupVersion;
   bool get saveRestricted =>
@@ -90,8 +234,9 @@ class PersistentPlanState extends ChangeNotifier {
   }
 
   Future<void> load() async {
-    if (_busy) return;
-    _busy = true;
+    if (_busy || _disposed) return;
+    cancelPhotoChange();
+    _beginOperation();
     phase = StartupPhase.loading;
     _notify();
     try {
@@ -128,7 +273,7 @@ class PersistentPlanState extends ChangeNotifier {
     } catch (_) {
       phase = StartupPhase.failure;
     } finally {
-      _busy = false;
+      _endOperation();
       _notify();
     }
   }
@@ -154,7 +299,7 @@ class PersistentPlanState extends ChangeNotifier {
         phase == StartupPhase.uncertain) {
       throw const SaveRequestFailure();
     }
-    _busy = true;
+    _beginOperation();
     try {
       prepare?.call();
       final result = await repository.save(candidate);
@@ -184,8 +329,12 @@ class PersistentPlanState extends ChangeNotifier {
       commit();
       _photoId = candidate.photoId;
       _notify();
+      await _cleanupPhotoFiles();
     } finally {
-      _busy = false;
+      _endOperation();
+      // Saved is announced before cleanup; also announce that the cleanup/save
+      // gate is open again so computed Import/Export availability is refreshed.
+      if (photos != null) _notify();
     }
   }
 
@@ -212,7 +361,10 @@ class PersistentPlanState extends ChangeNotifier {
           phase = StartupPhase.ready;
         },
         restoringBackup: true,
-        prepare: () => nextSession = _sessionFactory(candidate, referenceMonth),
+        prepare: () {
+          cancelPhotoChange();
+          nextSession = _sessionFactory(candidate, referenceMonth);
+        },
       );
     } on SaveRequestFailure {
       rethrow;
@@ -249,7 +401,8 @@ class PersistentPlanState extends ChangeNotifier {
     if (_disposed || saveRestricted || _busy || phase != StartupPhase.failure) {
       throw const SaveRequestFailure();
     }
-    _busy = true;
+    cancelPhotoChange();
+    _beginOperation();
     try {
       final result = await repository.discardUnreadableData();
       if (_disposed) throw const SaveRequestFailure();
@@ -272,7 +425,7 @@ class PersistentPlanState extends ChangeNotifier {
     } catch (_) {
       throw const SaveRequestFailure();
     } finally {
-      _busy = false;
+      _endOperation();
     }
   }
 
@@ -394,6 +547,7 @@ class PersistentPlanState extends ChangeNotifier {
 
   @override
   void dispose() {
+    cancelPhotoChange();
     _disposed = true;
     super.dispose();
   }
