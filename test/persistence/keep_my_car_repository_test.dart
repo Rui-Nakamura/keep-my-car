@@ -18,6 +18,7 @@ const mapper = KeepMyCarDataMapper();
 const codec = KeepMyCarJsonCodec();
 
 RestoredCarData snapshot([String? name, YearMonth? birthMonth]) => (
+  photoId: null,
   ownerBirthMonth: birthMonth ?? goldenSample.owner.birthMonth,
   car: goldenSample.car.copyWith(name: name),
   planConditions: conditions(),
@@ -28,6 +29,7 @@ List<int> bytes(RestoredCarData data) => utf8.encode(
   codec.encode(
     mapper.toDto(
       ownerBirthMonth: data.ownerBirthMonth,
+      photoId: data.photoId,
       car: data.car,
       planConditions: data.planConditions,
       plannedExpenses: data.plannedExpenses,
@@ -461,6 +463,7 @@ void main() {
     await seed();
     final bad = snapshot();
     final result = await repository.save((
+      photoId: null,
       ownerBirthMonth: goldenSample.owner.birthMonth,
       car: bad.car.copyWith(name: ''),
       planConditions: bad.planConditions,
@@ -618,6 +621,7 @@ void main() {
       };
       expect(
         await repository.save((
+          photoId: null,
           ownerBirthMonth: goldenSample.owner.birthMonth,
           car: goldenSample.car,
           planConditions: conditions(),

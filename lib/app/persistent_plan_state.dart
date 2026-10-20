@@ -38,6 +38,8 @@ class PersistentPlanState extends ChangeNotifier {
   PlanSession? session;
   Car? car;
   YearMonth? ownerBirthMonth;
+  String? _photoId;
+  String? get photoId => _photoId;
   bool _busy = false;
   bool _disposed = false;
   VersionProtected? versionProtection;
@@ -68,6 +70,7 @@ class PersistentPlanState extends ChangeNotifier {
       );
 
   RestoredCarData get snapshot => (
+    photoId: _photoId,
     ownerBirthMonth: ownerBirthMonth!,
     car: car!,
     planConditions: session!.conditions,
@@ -81,6 +84,7 @@ class PersistentPlanState extends ChangeNotifier {
   void _adopt(RestoredCarData data) {
     final nextSession = _sessionFactory(data, referenceMonth);
     ownerBirthMonth = data.ownerBirthMonth;
+    _photoId = data.photoId;
     car = data.car;
     session = nextSession;
   }
@@ -104,11 +108,13 @@ class PersistentPlanState extends ChangeNotifier {
           _adopt(data);
           phase = StartupPhase.recovered;
         case NoData():
+          _photoId = null;
           car = null;
           session = null;
           ownerBirthMonth = null;
           phase = StartupPhase.noData;
         case VersionProtected():
+          _photoId = null;
           // E-2 uses this typed protection to replace the legacy failure UI.
           // Destructive boundaries already reject operations in E-1.
           versionProtection = result;
@@ -176,6 +182,7 @@ class PersistentPlanState extends ChangeNotifier {
         throw const SaveRequestFailure();
       }
       commit();
+      _photoId = candidate.photoId;
       _notify();
     } finally {
       _busy = false;
@@ -188,6 +195,8 @@ class PersistentPlanState extends ChangeNotifier {
     try {
       final data = backup.data;
       final RestoredCarData candidate = (
+        // External JSON backups replace the whole plan and contain no photo.
+        photoId: null,
         ownerBirthMonth: data.ownerBirthMonth,
         car: data.car,
         planConditions: data.planConditions,
@@ -213,7 +222,9 @@ class PersistentPlanState extends ChangeNotifier {
   }
 
   Future<void> initialize(RestoredCarData candidate) async {
-    if (phase != StartupPhase.noData || candidate.plannedExpenses.isNotEmpty) {
+    if (phase != StartupPhase.noData ||
+        candidate.plannedExpenses.isNotEmpty ||
+        candidate.photoId != null) {
       throw const SaveRequestFailure();
     }
     final errors =
@@ -251,6 +262,7 @@ class PersistentPlanState extends ChangeNotifier {
         throw const SaveRequestFailure();
       }
       car = null;
+      _photoId = null;
       session = null;
       ownerBirthMonth = null;
       phase = StartupPhase.noData;
@@ -270,6 +282,7 @@ class PersistentPlanState extends ChangeNotifier {
     if (result.name == car!.name) return null;
     final candidate = car!.copyWith(name: result.name);
     return _persist((
+      photoId: _photoId,
       ownerBirthMonth: ownerBirthMonth!,
       car: candidate,
       planConditions: session!.conditions,
@@ -323,6 +336,7 @@ class PersistentPlanState extends ChangeNotifier {
     );
     return _persist(
       (
+        photoId: _photoId,
         ownerBirthMonth: ownerBirthMonth!,
         car: candidateCar,
         planConditions: next,
@@ -350,6 +364,7 @@ class PersistentPlanState extends ChangeNotifier {
     if (candidate.change == ExpenseChange.unchanged) return candidate.change;
     await _persist(
       (
+        photoId: _photoId,
         ownerBirthMonth: ownerBirthMonth!,
         car: car!,
         planConditions: session!.conditions,
@@ -368,6 +383,7 @@ class PersistentPlanState extends ChangeNotifier {
       return ExpenseChange.unchanged;
     }
     await _persist((
+      photoId: _photoId,
       ownerBirthMonth: ownerBirthMonth!,
       car: car!,
       planConditions: session!.conditions,

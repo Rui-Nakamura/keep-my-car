@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'keep_my_car_data_dto.dart';
 import 'keep_my_car_payload_codec.dart';
 import 'storage_format.dart';
+import 'persistence_version.dart';
 
 /// JSON syntax, required fields, types and version; never constructs domain
 /// models. Strings can be transported as UTF-8 using dart:convert's utf8 codec.
@@ -29,7 +30,7 @@ class KeepMyCarJsonCodec {
     if (version is! int) {
       throw const FormatException('Expected int: formatVersion');
     }
-    if (version > 2) {
+    if (version > currentPersistenceVersion) {
       throw UnsupportedStorageVersion(version);
     }
     if (version < 1) {

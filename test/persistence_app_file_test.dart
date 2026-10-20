@@ -74,7 +74,9 @@ void main() {
         ) as Map<String, dynamic>,
       );
       expect(json, {
-        'formatVersion': 2,
+        // New setup writes internal v3, including an explicit unset reference.
+        'formatVersion': 3,
+        'photoId': null,
         'ownerBirthMonth': '1975-06',
         'car': {
           'name': 'FileIntegrationCar',

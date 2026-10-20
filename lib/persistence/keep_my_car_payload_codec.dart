@@ -1,16 +1,25 @@
 import 'keep_my_car_data_dto.dart';
+import 'storage_format.dart';
 
-/// Converts the four formal input fields between objects and existing DTOs.
+/// Converts formal input fields between objects and existing DTOs.
 /// Checks required fields and JSON types; ignores unknown fields.
 /// Envelope callers explicitly select the schema version; payloads contain no
 /// version metadata. Mapper validates domain rules after structural decoding.
 class KeepMyCarPayloadCodec {
   const KeepMyCarPayloadCodec();
 
-  Map<String, dynamic> encode(KeepMyCarDataDto data) {
+  Map<String, dynamic> encode(KeepMyCarDataDto data, {int? version}) {
+    validateStorageFormat(data);
+    final outputVersion = version ?? data.formatVersion;
+    if (outputVersion < 1 || outputVersion > data.formatVersion) {
+      throw FormatException(
+        'Unsupported payload output version: $outputVersion',
+      );
+    }
     final car = data.car;
     final plan = data.planConditions;
     return {
+      if (outputVersion >= 3) 'photoId': data.photoId,
       'ownerBirthMonth': data.ownerBirthMonth,
       'car': {
         'name': car.name,
@@ -20,8 +29,7 @@ class KeepMyCarPayloadCodec {
         'annualMileageKm': car.annualMileageKm,
       },
       'planConditions': {
-        if (data.formatVersion == 2)
-          'fundingPlanEnabled': plan.fundingPlanEnabled,
+        if (outputVersion >= 2) 'fundingPlanEnabled': plan.fundingPlanEnabled,
         'currentMileageKm': plan.currentMileageKm,
         'annualMileageKm': plan.annualMileageKm,
         'ownershipTargetAge': plan.ownershipTargetAge,
@@ -50,7 +58,15 @@ class KeepMyCarPayloadCodec {
     final car = _object(root['car'], 'car');
     final plan = _object(root['planConditions'], 'planConditions');
     final expenses = _field<List<dynamic>>(root, 'plannedExpenses');
+    if (version >= 3 &&
+        (!root.containsKey('photoId') ||
+            (root['photoId'] != null && root['photoId'] is! String))) {
+      throw const FormatException('Required photoId as string or null');
+    }
+    final photoId = version >= 3 ? root['photoId'] as String? : null;
+    if (version >= 3) validatePhotoId(photoId);
     return KeepMyCarDataDto(
+      photoId: photoId,
       formatVersion: version,
       ownerBirthMonth: _field<String>(root, 'ownerBirthMonth'),
       car: CarDto(

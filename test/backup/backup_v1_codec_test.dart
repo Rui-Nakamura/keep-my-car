@@ -34,6 +34,7 @@ void rejected(Map<String, dynamic> root, BackupImportIssue issue) => expect(
 );
 
 RestoredCarData inputs() => (
+  photoId: null,
   ownerBirthMonth: const YearMonth(1970, 4),
   car: const Car(
     name: '愛車 🚗',
@@ -175,6 +176,7 @@ void main() {
   test('empty expenses round trip', () {
     final source = inputs();
     final empty = (
+      photoId: null,
       ownerBirthMonth: source.ownerBirthMonth,
       car: source.car,
       planConditions: source.planConditions,
@@ -189,6 +191,7 @@ void main() {
   });
   test('Golden Sample retains all formal inputs', () {
     final source = (
+      photoId: null,
       ownerBirthMonth: goldenSample.owner.birthMonth,
       car: goldenSample.car,
       planConditions: conditions(),
@@ -387,6 +390,7 @@ void main() {
     test('export cannot bypass mapper validation: $invalid', () {
       final source = inputs();
       final candidate = (
+        photoId: null,
         ownerBirthMonth: invalid == 'month'
             ? const YearMonth(10000, 1)
             : source.ownerBirthMonth,

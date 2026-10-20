@@ -7,8 +7,10 @@ import '../domain/plan_conditions_validation.dart';
 import '../domain/planned_expense_validation.dart';
 import 'keep_my_car_data_dto.dart';
 import 'storage_format.dart';
+import 'persistence_version.dart';
 
 typedef RestoredCarData = ({
+  String? photoId,
   YearMonth ownerBirthMonth,
   Car car,
   PlanConditions planConditions,
@@ -28,10 +30,12 @@ class KeepMyCarDataMapper {
     required Car car,
     required PlanConditions planConditions,
     required List<PlannedExpense> plannedExpenses,
+    required String? photoId,
   }) {
     _validate(car, planConditions, plannedExpenses);
     final data = KeepMyCarDataDto(
-      formatVersion: 2,
+      formatVersion: currentPersistenceVersion,
+      photoId: photoId,
       ownerBirthMonth: ownerBirthMonth.toString(),
       car: CarDto(
         name: validateCarName(car.name).name,
@@ -119,6 +123,7 @@ class KeepMyCarDataMapper {
     ];
     _validate(car, plan, expenses, legacyV1: data.formatVersion == 1);
     return (
+      photoId: data.formatVersion >= 3 ? data.photoId : null,
       ownerBirthMonth: _month(data.ownerBirthMonth),
       car: car.copyWith(name: validateCarName(car.name).name),
       planConditions: plan,

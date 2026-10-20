@@ -51,6 +51,7 @@ class TestRepository extends KeepMyCarRepository {
 RestoredCarData sampleSnapshot([PlanSession? plan]) {
   final p = plan ?? support.session();
   return (
+    photoId: null,
     ownerBirthMonth: p.birthMonth,
     car: goldenSample.car.copyWith(
       currentMileageKm: p.conditions.currentMileageKm,

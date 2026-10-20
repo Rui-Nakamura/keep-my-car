@@ -296,6 +296,7 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
                           required conditions,
                         }) => state.initialize((
                           ownerBirthMonth: ownerBirthMonth,
+                          photoId: null,
                           car: car,
                           planConditions: conditions,
                           plannedExpenses: [],

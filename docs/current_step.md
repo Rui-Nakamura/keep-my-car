@@ -1,6 +1,6 @@
 # Phase 05 Step 15 — MVP情報設計・機能優先順位再整理
 
-Status：Step 15-Aの影響調査、Step 15-Bの計算の土台、Step 15-CのHome新設計、およびStep 15-D3まで正式完了。Step 15-E-3の主要Android技術受入、Backup v2 Export／Import・再起動後PersistenceはPO承認済みPASS。特殊ケースの実機未実施範囲と手元UXの改善事項は下記E-3受入記録に従う。Step 15-Fは検討対象の引継ぎまでを承認済みとし、具体的なUI仕様・実装は未承認。各工程の当時の受入記録と持ち越し事項は履歴として維持する。
+Status：Step 15-Aの影響調査、Step 15-Bの計算の土台、Step 15-CのHome新設計、およびStep 15-D3まで正式完了。Step 15-E-3の主要Android技術受入、Backup v2 Export／Import・再起動後PersistenceはPO承認済みPASS。特殊ケースの実機未実施範囲と手元UXの改善事項は下記E-3受入記録に従う。Step 15-F-Impl-01は内部Persistence v3・互換性維持の実装開始を承認した工程であり、この開始承認は実装の正式受入・工程の正式完了を意味しない。承認済み保存契約は下記F-Impl-01仕様に従う。Fの具体的なUI仕様・実装の承認とは区別する。各工程の当時の受入記録と持ち越し事項は履歴として維持する。
 
 D1由来の後続UX課題は下記「後続課題」の引継ぎ先に従う。青／緑輪郭通知を含むStep 15-F対象のUI/UXはFで再評価し、D1〜D3の正式完了判定・既存受入結果は変更しない。
 
@@ -965,6 +965,36 @@ read-only調査で、**予定費追加時には青／緑の画面輪郭通知が
 Step 13・14から持ち越した画面の見やすさ、入力の分かりやすさ、通知表現、データ管理画面等のUI/UX改善候補は失効させず、主にStep 15-D〜Fで再評価する。
 
 本節で明示した将来の決定事項は、それぞれの工程で確定する。仕様にない機能、外部package、Theme変更、Android/iOS設定変更等を本節から暗黙に承認されたものとして追加しない。
+
+## Step 15-F-Impl-01：内部Persistence v3・互換性維持
+
+本節は内部保存の写真参照追加に限定した承認済み仕様であり、内部versionについてEの保存契約を更新する。E以前の仕様・受入記録は当時の履歴として維持する。Car・PlanConditions・計算エンジン・UI・Theme・Android／iOS設定は変更しない。
+
+### 保存aggregateとphotoId
+
+- `RestoredCarData` の最上位は `ownerBirthMonth`、`car`、`planConditions`、`plannedExpenses`、`photoId` とする。`photoId` は計算用Domainへ追加しない。
+- `photoId` は `String?`。未設定はnull、有効値は小文字・ハイフン付き標準36文字のUUID v4とする。version桁は4、variant桁は8／9／a／bのみ許容する。
+- 内部v3のJSONでは `photoId` キーを必須とする。nullは正常だが、欠損・不正型・空文字・大文字・ハイフン欠損・長さ不正・他version／variant・ファイル名・絶対パス等は拒否し、黙って正規化しない。decodeと正式encode／保存schema境界の両方で検証する。
+- 写真実ファイルの存在確認はJSON妥当性に含めない。参照先がなくても計画データを利用できる。UUID生成・写真選択・変換・実ファイル保存・表示・削除・cleanup・ZIP Backupは本工程に含めない。
+
+### 内部versionと互換性
+
+- 内部の新規正式書込みは `formatVersion=3`。読込みはv1／v2／v3に対応し、対応上限・新規書込みversionは `currentPersistenceVersion` を共用する。v4以上の正しい整数versionは未対応の将来versionとして保護する。
+- v1／v2は既存の必須field・型・固定検証・未知fieldの扱いを維持し、`photoId=null` として変換する。読込みだけでは元ファイルを書き換えず、利用者による明示保存時にv3へ移行する。v1／v2 DTOへ非nullのphotoIdを直接指定することは拒否するが、旧JSONの未知field許容は変更しない。
+- v1固有のlegacy検証はv1のみに適用し、正常v1の `fundingPlanEnabled=true` を維持する。v2／v3の `fundingPlanEnabled` は必須boolであり、欠損・null・不正型を拒否する。v3保存でもこのboolを必ず出力する。新規計画は引き続きfalseとする。
+
+### 正式snapshotとSafe Save／Recovery
+
+- `PersistentPlanState` は正式snapshotにphotoIdを保持する。愛車名・基本条件・保有目標・資金計画の開始／再開／更新／停止・予定費の追加／編集／削除・既存 `apply()` の全通常保存で、保存候補へ正式photoIdを明示的に引き継ぐ。
+- 保存候補と正式採用済み状態を区別し、Saved後だけ正式snapshotのphotoIdを採用する。通常保存失敗・rollback失敗時は正式photoIdを置き換えず、既存の保存状態不明の保護を維持する。初回設定はphotoId=nullとし、load／adopt／状態破棄でも計画と参照を整合させる。写真変更APIは本工程で追加しない。
+- current／backupそれぞれのv1／v2／v3を判定する。正常current優先、current利用不能時のbackup評価、未対応future保護、tmpの通常Recovery非採用、Recovery時の自動修復書込み禁止を維持する。
+- 候補のtemp検証・current確定後検証・Saved後のみ正式採用・既存rollbackを維持する。rollbackは元のJSON bytesをそのまま復元し、失敗時は状態不明とする。Safe Save／Recovery全体の再設計や電源断を含む完全transaction保証は追加しない。正常な0円と保存失敗を区別する。
+
+### 外部JSON Backupとの分離
+
+- 外部JSON Backupは内部versionと独立し、最新Exportは `exportFormatVersion=2`、Importはv1／v2のままとする。外部version=3は引き続きunsupportedとする。
+- Mapperの `toDto()` は `photoId` を必須named引数とし、内部保存では既存値、外部Exportではnullを明示する。内部Mapperがv3 DTOを返しても、Exportは共通Payload Codecへ外部v2を明示指定する。既存v2出力schemaにphotoIdを含めず、v1／v2の既存schema・検証・Import互換性を維持する。
+- 旧外部JSON BackupのImportは完全置換であり、photoId=nullとして保存・採用する。既存写真参照を引き継がない。完全validation、Safe Save成功前の正式状態保護、失敗時rollback・状態不明時の保護は維持する。
 
 ---
 

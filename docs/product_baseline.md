@@ -112,13 +112,19 @@ MUSTは製品要件であり、実装済みを意味しない。現在の実装�
 
 Step 12の内部 `current / temp / backup` はSafe Save用であり、ユーザーが持ち出せるManual Export / Importとは別物である。Manual Export / ImportはStep 14で扱うMUSTであり、Importは既存データを壊さない安全設計を前提とする。
 
-内部保存方式・保存DTO・Safe Save / Recoveryは `current_step.md` のStep 12、外部Export形式・拡張子・暗号化方針・Import validation等は同文書のStep 14を継承する。Step 15-Eで明示した利用状態、version、検証分離、移行、未対応versionの扱いはE仕様を優先する。
+内部保存方式・保存DTO・Safe Save / Recoveryは `current_step.md` のStep 12、外部Export形式・拡張子・暗号化方針・Import validation等は同文書のStep 14を継承する。Step 15-Eで明示した利用状態、検証分離、未対応versionの保護を継承し、内部version・写真参照・移行はStep 15-F-Impl-01仕様を優先する。
 
 Step 15-B〜DではPersistence形式・Backup v1形式・保存項目を変更しない方針を適用した。Step 15-Eでは利用状態追加に限定して内部保存の新規書込みを `formatVersion=2`、外部Exportを `exportFormatVersion=2` とする。両versionは別管理とし、ローカル読込みとImportはそれぞれv1・v2に対応する。
 
 旧v1は厳密な検証後に既存値を保持して読み込み、読込みだけでは元ファイルを書き換えない。既存データの自動削除・補正・予定費への変換は行わない。新Backup v2から旧アプリへの復元とダウングレードは非対応とする。
 
-既存Safe Save・rollbackを維持し、資金計画の期限超過・保有期間外を破損扱いしない。未対応の将来versionは専用の保護状態でアプリ更新を案内し、元データを変更する操作を止める。正常currentを閲覧できる場合も未対応backupを保護する保存制限を案内する。正常current＋未対応backupのManual Exportは、正常な正式snapshotを書き出す既存安全条件のもとで許可し、内部ファイルを変更せず保存制限を維持する。未対応backup自体の救出・修復とは扱わない。通常の破損データのRecovery・Failure導線は維持する。version識別、形式別validation、移行、Import、保存前の保護、Recoveryの詳細は [current_step.mdのStep 15-E](current_step.md) に従う。電源断まで含む完全transaction保証は追加しない。
+Step 15-F-Impl-01では内部の新規正式書込みを `formatVersion=3` とし、v1／v2／v3を読み込む。保存aggregate `RestoredCarData` の最上位と正式snapshotに `String? photoId` を保持し、Car・計算用Domainから分離する。v3ではキー必須、nullまたは小文字・ハイフン付き標準36文字のUUID v4（version・variantを含む厳密検証）のみ許容する。decode／encode／保存境界で不正値を拒否し、自動補正しない。写真実ファイルの存在は計画JSONの妥当性に含めず、欠損時も計画を利用できる。
+
+v1／v2はphotoId=nullとして既存検証のまま読み込み、読込みのみでは書き換えず、明示保存でv3へ移行する。v1の利用状態true、新規計画のfalseを維持し、v2／v3では `fundingPlanEnabled` を必須boolとして保存・検証する。内部v4以上は未対応versionとして保護する。通常の全計画保存でphotoIdを候補へ引き継ぎ、Saved後だけ正式状態へ反映する。初回設定・状態破棄では古い写真参照を残さない。current／backupのv1／v2／v3混在に対応し、既存の候補検証・Recovery・元JSON bytesによるrollback・状態不明の保護を維持する。
+
+外部JSON Backupの最新versionは2のままとし、内部v3 DTOからも外部v2を明示してExportし、photoIdを含めない。外部v1／v2のschema・検証・Import互換性を維持し、外部version=3はunsupportedとする。ImportはphotoId=nullによる完全置換で、保存成功前の正式状態保護を継承する。写真選択・JPEG変換・実ファイル保存・表示・削除・cleanup・UUID生成・ZIP BackupはF-Impl-01には含めない。詳細は [current_step.mdのStep 15-F-Impl-01](current_step.md) を正本とする。
+
+既存Safe Save・rollbackを維持し、資金計画の期限超過・保有期間外を破損扱いしない。未対応の将来versionは専用の保護状態でアプリ更新を案内し、元データを変更する操作を止める。正常currentを閲覧できる場合も未対応backupを保護する保存制限を案内する。正常current＋未対応backupのManual Exportは、正常な正式snapshotを書き出す既存安全条件のもとで許可し、内部ファイルを変更せず保存制限を維持する。未対応backup自体の救出・修復とは扱わない。通常の破損データのRecovery・Failure導線は維持する。version識別、形式別validation、移行、Import、保存前の保護、Recoveryの詳細は [current_step.mdのStep 15-E](current_step.md) を継承し、内部Persistence v3・写真参照・旧version互換と明示保存時の移行は同文書のStep 15-F-Impl-01仕様を優先する。電源断まで含む完全transaction保証は追加しない。
 
 ## Technical Baseline
 

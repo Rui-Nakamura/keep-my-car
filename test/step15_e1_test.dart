@@ -257,6 +257,7 @@ void main() {
         ownershipTargetAge: 70,
       );
       await state.initialize((
+        photoId: null,
         ownerBirthMonth: source.ownerBirthMonth,
         car: source.car,
         planConditions: plan,
@@ -422,7 +423,7 @@ void main() {
     },
   );
   test(
-    'v1 bytes unchanged on load; explicit v2 save/reload retains v1 backup',
+    'v1 bytes unchanged on load; explicit v3 save/reload retains v1 backup',
     () async {
       final storage = MemoryStorage()..files[DataFile.current] = bytes(wire());
       final repo = KeepMyCarRepository(storage);
@@ -434,7 +435,7 @@ void main() {
         jsonDecode(
           utf8.decode(storage.files[DataFile.current]!),
         )['formatVersion'],
-        2,
+        3,
       );
       expect(storage.files[DataFile.backup], bytes(wire()));
       expect(
@@ -448,7 +449,7 @@ void main() {
       'future protection: $current current, future backup; zero mutations',
       () async {
         final storage = MemoryStorage();
-        final future = bytes({'formatVersion': 3, 'unknown': 'schema'});
+        final future = bytes({'formatVersion': 4, 'unknown': 'schema'});
         if (current == 'future') storage.files[DataFile.current] = future;
         if (current == 'valid') storage.files[DataFile.current] = bytes(v2());
         if (current == 'corrupt') {
@@ -462,7 +463,7 @@ void main() {
         final repo = KeepMyCarRepository(storage);
         final loaded = await repo.load();
         if (current == 'valid') {
-          expect((loaded as Loaded).unsupportedBackupVersion, 3);
+          expect((loaded as Loaded).unsupportedBackupVersion, 4);
         } else {
           expect(loaded, isA<VersionProtected>());
         }
@@ -551,7 +552,7 @@ void main() {
       await state.load();
       expect(state.session!.conditions.fundingPlanEnabled, false);
       expect(state.session!.conditions.reserveTargetAge, 65);
-      storage.files[DataFile.backup] = bytes({'formatVersion': 3});
+      storage.files[DataFile.backup] = bytes({'formatVersion': 4});
       final before = state.session!.conditions;
       await expectLater(
         Future.sync(() => state.applyBasic(conditions(ownership: 80))),

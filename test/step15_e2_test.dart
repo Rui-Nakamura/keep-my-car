@@ -78,7 +78,7 @@ void main() {
       await openFunding(t);
       await enter(t, 'reserve', '3000000');
       storage.files[DataFile.current] = bytes({
-        'formatVersion': 3,
+        'formatVersion': 4,
         'unknown': 'preserve',
       });
       final before = Map<DataFile, List<int>>.from(storage.files);
@@ -143,7 +143,7 @@ void main() {
     'restricted existing expense permits viewing but not save or deletion',
     (t) async {
       final repo = TestRepository(
-        Loaded(sampleSnapshot(), unsupportedBackupVersion: 3),
+        Loaded(sampleSnapshot(), unsupportedBackupVersion: 4),
       );
       await t.pumpWidget(
         KeepMyCarApp(repository: repo, now: () => DateTime(2026, 9)),
@@ -658,6 +658,7 @@ void main() {
           final data = sampleSnapshot();
           final initial = action == 'restart'
               ? (
+                  photoId: null,
                   ownerBirthMonth: data.ownerBirthMonth,
                   car: data.car,
                   planConditions: toggle(data.planConditions, false),
@@ -729,7 +730,7 @@ void main() {
     testWidgets(
       'version protected $file has update UI and no destructive choices',
       (t) async {
-        final repo = TestRepository(VersionProtected(file: file, version: 3));
+        final repo = TestRepository(VersionProtected(file: file, version: 4));
         await t.pumpWidget(KeepMyCarApp(repository: repo));
         await t.pumpAndSettle();
         expect(find.text('アプリの更新が必要です'), findsOneWidget);
@@ -750,7 +751,7 @@ void main() {
         final storage = MemoryStorage()
           ..files[DataFile.current] = bytes(v2())
           ..files[DataFile.backup] = bytes({
-            'formatVersion': 3,
+            'formatVersion': 4,
             'unknown': 'preserve',
           })
           ..files[DataFile.temp] = [1, 2, 3];
@@ -838,7 +839,7 @@ void main() {
       repo.saveResult = SaveFailure(
         PersistenceIssue(
           PersistenceStage.versionProtection,
-          const UnsupportedStorageVersion(3, file: 'backup'),
+          const UnsupportedStorageVersion(4, file: 'backup'),
           StackTrace.current,
         ),
       );

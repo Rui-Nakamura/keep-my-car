@@ -45,6 +45,7 @@ BackupImportSuccess backup({bool empty = false}) {
     ),
   );
   final data = (
+    photoId: null,
     ownerBirthMonth: source.ownerBirthMonth,
     car: source.car.copyWith(name: '復元した愛車'),
     planConditions: source.planConditions,
@@ -261,6 +262,7 @@ void main() {
         await expectLater(
           state.restoreFromBackup(
             BackupImportSuccess((
+              photoId: null,
               ownerBirthMonth: data.ownerBirthMonth,
               car: data.car,
               planConditions: data.planConditions,

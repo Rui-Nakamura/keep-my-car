@@ -67,6 +67,7 @@ Map<String, dynamic> section(Map<String, dynamic> data, String name) =>
     };
 
 KeepMyCarDataDto sampleDto({List<PlannedExpense>? expenses}) => mapper.toDto(
+  photoId: null,
   ownerBirthMonth: goldenSample.owner.birthMonth,
   car: goldenSample.car,
   planConditions: conditions(),
@@ -111,6 +112,7 @@ void main() {
       'ownerBirthMonth $month survives without new age or current-month rules',
       () {
         final dto = mapper.toDto(
+          photoId: null,
           ownerBirthMonth: month,
           car: goldenSample.car,
           planConditions: conditions(),
@@ -119,7 +121,7 @@ void main() {
         expect(dto.ownerBirthMonth, month.toString());
         final json = jsonDecode(codec.encode(dto)) as Map<String, dynamic>;
         expect(json['ownerBirthMonth'], month.toString());
-        expect(json['formatVersion'], 2);
+        expect(json['formatVersion'], 3);
         expect(json.containsKey('referenceMonth'), isFalse);
         final restored = mapper.toDomain(codec.decode(jsonEncode(json)));
         expect(restored.ownerBirthMonth, month);
@@ -147,6 +149,7 @@ void main() {
     test('fixed age boundary $age survives full persistence round trip', () {
       final plan = conditions(ownership: age, age: age);
       final dto = mapper.toDto(
+        photoId: null,
         ownerBirthMonth: goldenSample.owner.birthMonth,
         car: goldenSample.car,
         planConditions: plan,
@@ -174,6 +177,7 @@ void main() {
             : conditions(age: age);
         expect(
           () => mapper.toDto(
+            photoId: null,
             ownerBirthMonth: goldenSample.owner.birthMonth,
             car: goldenSample.car,
             planConditions: plan,
@@ -186,7 +190,7 @@ void main() {
   }
   test('Domain to DTO preserves all fields and stable enum identifiers', () {
     final dto = sampleDto();
-    expect(dto.formatVersion, 2);
+    expect(dto.formatVersion, 3);
     expect(dto.ownerBirthMonth, '1970-04');
     expect(dto.car.name, 'メルセデスAMG E53');
     expect(dto.car.firstRegistrationMonth, '2018-08');
@@ -374,7 +378,7 @@ void main() {
     },
   );
 
-  for (final version in [3, 999]) {
+  for (final version in [4, 999]) {
     test('future integer version $version is UnsupportedStorageVersion', () {
       // Unknown schema must be identified before inspecting required fields.
       expect(
@@ -552,6 +556,7 @@ void main() {
   test('domain to DTO also rejects invalid domain input', () {
     expect(
       () => mapper.toDto(
+        photoId: null,
         ownerBirthMonth: goldenSample.owner.birthMonth,
         car: goldenSample.car.copyWith(name: '\t愛車'),
         planConditions: conditions(),
@@ -561,6 +566,7 @@ void main() {
     );
     expect(
       () => mapper.toDto(
+        photoId: null,
         ownerBirthMonth: goldenSample.owner.birthMonth,
         car: goldenSample.car,
         planConditions: conditions(fund: -1),
@@ -602,6 +608,7 @@ void main() {
         expectSample(restored);
         final savedAgain = codec.encode(
           laterMapper.toDto(
+            photoId: restored.photoId,
             ownerBirthMonth: goldenSample.owner.birthMonth,
             car: restored.car,
             planConditions: restored.planConditions,
@@ -658,6 +665,7 @@ void main() {
         );
         expect(
           () => mapper.toDto(
+            photoId: null,
             ownerBirthMonth: goldenSample.owner.birthMonth,
             car: car,
             planConditions: conditions(),
@@ -702,6 +710,7 @@ void main() {
       codec.decode(
         codec.encode(
           mapper.toDto(
+            photoId: null,
             ownerBirthMonth: goldenSample.owner.birthMonth,
             car: car,
             planConditions: plan,
@@ -747,6 +756,7 @@ void main() {
     expect(restored.car.name, '🚗' * 40);
     expect(restored.plannedExpenses.first.name, 'タイヤ　交換');
     final dto = mapper.toDto(
+      photoId: null,
       ownerBirthMonth: goldenSample.owner.birthMonth,
       car: goldenSample.car.copyWith(name: ' 愛車　A '),
       planConditions: conditions(),
@@ -777,6 +787,7 @@ void main() {
         jsonDecode(
           codec.encode(
             mapper.toDto(
+              photoId: restored.photoId,
               ownerBirthMonth: goldenSample.owner.birthMonth,
               car: restored.car,
               planConditions: restored.planConditions,
@@ -784,7 +795,7 @@ void main() {
             ),
           ),
         ),
-        v2Wire(data),
+        {...v2Wire(data), 'formatVersion': 3, 'photoId': null},
       );
     },
   );
@@ -843,7 +854,7 @@ void main() {
   test('manually constructed invalid DTO cannot bypass format checks', () {
     final source = sampleDto();
     final invalidVersion = KeepMyCarDataDto(
-      formatVersion: 3,
+      formatVersion: 4,
       ownerBirthMonth: goldenSample.owner.birthMonth.toString(),
       car: source.car,
       planConditions: source.planConditions,
@@ -913,6 +924,7 @@ void main() {
               )
               .toList();
       final before = timeline((
+        photoId: null,
         ownerBirthMonth: goldenSample.owner.birthMonth,
         car: goldenSample.car,
         planConditions: conditions(),

@@ -20,6 +20,7 @@ class BackupV1Codec {
   /// Invalid caller data throws the mapper's ArgumentError/FormatException.
   Uint8List encode(RestoredCarData data, {required DateTime createdAt}) {
     final dto = _mapper.toDto(
+      photoId: null,
       ownerBirthMonth: data.ownerBirthMonth,
       car: data.car,
       planConditions: data.planConditions,
@@ -31,7 +32,7 @@ class BackupV1Codec {
           'format': _format,
           'exportFormatVersion': _version,
           'createdAt': createdAt.toUtc().toIso8601String(),
-          'data': _payload.encode(dto),
+          'data': _payload.encode(dto, version: _version),
         }),
       ),
     );

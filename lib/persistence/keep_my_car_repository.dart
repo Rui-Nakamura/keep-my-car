@@ -4,6 +4,7 @@ import 'keep_my_car_data_mapper.dart';
 import 'keep_my_car_json_codec.dart';
 import 'local_file_storage.dart';
 import 'persistence_result.dart';
+import 'persistence_version.dart';
 
 /// One owner per storage directory. Concurrent operations on this instance are
 /// rejected, including load during save, so no intermediate state is exposed.
@@ -32,6 +33,7 @@ class KeepMyCarRepository {
         car: data.car,
         planConditions: data.planConditions,
         plannedExpenses: data.plannedExpenses,
+        photoId: data.photoId,
       ),
     ),
   );
@@ -196,7 +198,9 @@ class KeepMyCarRepository {
       final root = jsonDecode(utf8.decode(bytes));
       if (root is Map<String, dynamic>) {
         final version = root['formatVersion'];
-        if (version is int && version > 2) return version;
+        if (version is int && version > currentPersistenceVersion) {
+          return version;
+        }
       }
     } on FormatException {
       // Malformed input follows the existing corruption/recovery contract.

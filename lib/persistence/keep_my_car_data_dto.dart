@@ -1,7 +1,10 @@
+import 'persistence_version.dart';
+
 /// Versioned storage values only; domain rules belong to the mapper.
 class KeepMyCarDataDto {
   KeepMyCarDataDto({
-    this.formatVersion = 2,
+    this.formatVersion = currentPersistenceVersion,
+    this.photoId,
     required this.ownerBirthMonth,
     required this.car,
     required this.planConditions,
@@ -9,6 +12,7 @@ class KeepMyCarDataDto {
   }) : plannedExpenses = List.unmodifiable(plannedExpenses);
 
   final int formatVersion;
+  final String? photoId;
   final String ownerBirthMonth;
   final CarDto car;
   final PlanConditionsDto planConditions;
