@@ -120,4 +120,28 @@ void main() {
     pending.complete({'status': 'cancelled'});
     expect((await operation).status, BackupFileStatus.cancelled);
   });
+
+  for (final zip in [false, true]) {
+    final limit = zip
+        ? BackupFileGateway.maxZipReadBytes
+        : BackupFileGateway.maxReadBytes;
+    for (final delta in [-1, 0, 1]) {
+      test('${zip ? "ZIP" : "JSON"} read boundary $delta', () async {
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          expect(call.arguments, zip ? {'profile': 'zipV1'} : null);
+          return {'status': 'success', 'bytes': Uint8List(limit + delta)};
+        });
+        final result = zip ? await gateway.readZip() : await gateway.read();
+        expect(
+          result.status,
+          delta > 0 ? BackupFileStatus.error : BackupFileStatus.success,
+        );
+        if (delta > 0) expect(result.error, BackupFileError.tooLarge);
+      });
+    }
+  }
+
+  test('ZIP missing native implementation fails safely', () async {
+    expect((await gateway.readZip()).error, BackupFileError.platformFailure);
+  });
 }

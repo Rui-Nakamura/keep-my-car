@@ -43,6 +43,28 @@ private class ExistingOutput(private var contents: ByteArray, private val reject
 
 fun main() {
     val bytes = byteArrayOf(0, 1, 127, -1)
+    scenario("read profiles reject unrecognized or arbitrary limits") {
+        check(backupReadLimit(null) == 5 * 1024 * 1024)
+        check(backupReadLimit(mapOf("profile" to "zipV1")) == 12 * 1024 * 1024)
+        for (value in listOf(mapOf<String, Any>(), "zipV1", mapOf("profile" to "json"),
+                mapOf("maxBytes" to Int.MAX_VALUE), mapOf("profile" to "zipV1", "extra" to true))) {
+            check(backupReadLimit(value) == null)
+        }
+        expectError(BackupStreamIo.read({ error("must not open") }, active(), Int.MAX_VALUE), "invalidArguments")
+    }
+    for (limit in listOf(BACKUP_MAX_READ_BYTES, BACKUP_ZIP_MAX_READ_BYTES)) {
+        for (size in listOf(limit - 1, limit, limit + 1)) {
+            scenario("profile $limit actual bytes boundary $size") {
+                var closed = false
+                val outcome = BackupStreamIo.read({ object : ByteArrayInputStream(ByteArray(size)) {
+                    override fun close() { closed = true }
+                } }, active(), limit)
+                check(closed)
+                if (size > limit) expectError(outcome, "tooLarge")
+                else check(outcome.status == "success" && outcome.bytes!!.size == size)
+            }
+        }
+    }
     scenario("wt replaces larger existing contents with only new shorter bytes") {
         val target = ExistingOutput(ByteArray(8192) { 42 })
         val outcome = BackupStreamIo.save({ target.open("wt") }, bytes, active())

@@ -32,7 +32,10 @@ class IoPhotoFileStorage implements PhotoFileStorage {
       throw const PhotoFailure(PhotoIssue.unsafePath);
     }
     if (rootType == FileSystemEntityType.notFound) {
-      if (!create) return null;
+      if (!create) {
+        await _verifyMissing(provided.path);
+        return null;
+      }
       await provided.create(recursive: true);
     }
     // The directory provider is trusted configuration (Application Support),
@@ -41,7 +44,10 @@ class IoPhotoFileStorage implements PhotoFileStorage {
     final root = Directory(await provided.resolveSymbolicLinks());
     final photos = Directory('${root.path}${Platform.pathSeparator}photos');
     final type = await FileSystemEntity.type(photos.path, followLinks: false);
-    if (type == FileSystemEntityType.notFound && !create) return null;
+    if (type == FileSystemEntityType.notFound && !create) {
+      await _verifyMissing(photos.path);
+      return null;
+    }
     if (type == FileSystemEntityType.notFound) await photos.create();
     if (await FileSystemEntity.type(photos.path, followLinks: false) !=
         FileSystemEntityType.directory) {
@@ -59,6 +65,20 @@ class IoPhotoFileStorage implements PhotoFileStorage {
       actual = actual.toLowerCase();
     }
     if (expected != actual) throw const PhotoFailure(PhotoIssue.unsafePath);
+  }
+
+  // type() may report notFound for an inaccessible path. Confirm an actual
+  // missing-path OS error before backup is allowed to offer photo omission.
+  Future<void> _verifyMissing(String path) async {
+    try {
+      await File(path).resolveSymbolicLinks();
+    } on FileSystemException catch (error) {
+      final code = error.osError?.errorCode;
+      if (code == 2 || (Platform.isWindows && code == 3)) return;
+      rethrow;
+    }
+    // The path appeared during inspection; its safety is not established.
+    throw const PhotoFailure(PhotoIssue.unsafePath);
   }
 
   Future<void> _regular(File file) async {
@@ -118,6 +138,7 @@ class IoPhotoFileStorage implements PhotoFileStorage {
     final file = File('${directory.path}${Platform.pathSeparator}$id.jpg');
     if (await FileSystemEntity.type(file.path, followLinks: false) ==
         FileSystemEntityType.notFound) {
+      await _verifyMissing(file.path);
       return null;
     }
     await _regular(file);

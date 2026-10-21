@@ -30,6 +30,7 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
     private var pending: BackupFileOperation? = null
     private var requestCode: Int? = null
     private var saveBytes: ByteArray? = null
+    private var readLimit: Int = BACKUP_MAX_READ_BYTES
     private var timeoutTask: Runnable? = null
     private var closed = false
 
@@ -52,6 +53,11 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
             return
         }
         val saving = call.method == "save"
+        val requestedLimit = if (saving) BACKUP_MAX_READ_BYTES else backupReadLimit(call.arguments)
+        if (requestedLimit == null) {
+            result.success(fileError("invalidArguments").wire())
+            return
+        }
         val args = call.arguments as? Map<*, *>
         val filename = args?.get("filename") as? String
         val mime = args?.get("mimeType") as? String
@@ -71,6 +77,7 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
         pending = operation
         requestCode = allocatedRequest
         saveBytes = if (saving) bytes else null
+        readLimit = requestedLimit
         try {
             val intent = Intent(if (saving) Intent.ACTION_CREATE_DOCUMENT else Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
@@ -119,6 +126,7 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
         timeoutTask = timeout
         main.postDelayed(timeout, BACKUP_IO_TIMEOUT_MS)
         val bytes = saveBytes
+        val maxBytes = readLimit
         saveBytes = null
         // Keep only the application resolver in the worker, never the Activity.
         try {
@@ -126,7 +134,7 @@ internal class BackupFileChannel(activity: Activity, messenger: BinaryMessenger)
                 val outcome = if (bytes != null) {
                     BackupStreamIo.save({ resolver.openOutputStream(uri, "wt") }, bytes, operation.abandoned)
                 } else {
-                    BackupStreamIo.read({ resolver.openInputStream(uri) }, operation.abandoned)
+                    BackupStreamIo.read({ resolver.openInputStream(uri) }, operation.abandoned, maxBytes)
                 }
                 main.post {
                     // Also check elapsed time if main-thread delivery was delayed (e.g. background sleep).

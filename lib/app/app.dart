@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../backup/backup_transfer.dart';
+import '../backup/zip_backup_transfer.dart';
 import '../backup/backup_import_result.dart';
 import '../backup_file/backup_file_gateway.dart';
 import '../features/settings/presentation/data_management_screen.dart';
@@ -40,6 +41,7 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
   final navigator = GlobalKey<NavigatorState>();
   late final PersistentPlanState state;
   late final BackupTransfer transfer;
+  late final ZipBackupTransfer zipTransfer;
   bool settingUp = false;
   int successNotificationId = 0;
   StartupPhase previous = StartupPhase.loading;
@@ -57,6 +59,11 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
       photos: widget.photos,
     )..addListener(changed);
     transfer = BackupTransfer(
+      state: state,
+      gateway: widget.backupGateway,
+      now: widget.now,
+    );
+    zipTransfer = ZipBackupTransfer(
       state: state,
       gateway: widget.backupGateway,
       now: widget.now,
@@ -339,6 +346,7 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
         };
   @override
   void dispose() {
+    zipTransfer.dispose();
     state.removeListener(changed);
     state.dispose();
     super.dispose();

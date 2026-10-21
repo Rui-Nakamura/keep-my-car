@@ -7,7 +7,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 // Production limits: actual read bytes and URI-selected I/O only.
 internal const val BACKUP_MAX_READ_BYTES = 5 * 1024 * 1024
+internal const val BACKUP_ZIP_MAX_READ_BYTES = 12 * 1024 * 1024
 internal const val BACKUP_IO_TIMEOUT_MS = 60_000L
+
+// Null arguments preserve the legacy JSON call. No arbitrary numeric limit.
+internal fun backupReadLimit(arguments: Any?): Int? {
+    if (arguments == null) return BACKUP_MAX_READ_BYTES
+    val args = arguments as? Map<*, *> ?: return null
+    return if (args.size == 1 && args["profile"] == "zipV1") BACKUP_ZIP_MAX_READ_BYTES else null
+}
 
 internal data class FileOutcome(val status: String, val code: String? = null, val bytes: ByteArray? = null) {
     fun wire(): Map<String, Any> = buildMap {
@@ -44,7 +52,11 @@ internal object BackupStreamIo {
         FileOutcome("success")
     }
 
-    fun read(open: () -> InputStream?, abandoned: AtomicBoolean): FileOutcome = attempt {
+    fun read(open: () -> InputStream?, abandoned: AtomicBoolean,
+             maxBytes: Int = BACKUP_MAX_READ_BYTES): FileOutcome = attempt {
+        if (maxBytes != BACKUP_MAX_READ_BYTES && maxBytes != BACKUP_ZIP_MAX_READ_BYTES) {
+            throw FileIoFailure("invalidArguments")
+        }
         checkActive(abandoned)
         val stream = open() ?: throw FileIoFailure("streamUnavailable")
         val output = ByteArrayOutputStream()
@@ -55,7 +67,7 @@ internal object BackupStreamIo {
                 val count = it.read(buffer)
                 if (count < 0) break
                 if (count == 0) continue
-                if (count > BACKUP_MAX_READ_BYTES - output.size()) throw FileIoFailure("tooLarge")
+                if (count > maxBytes - output.size()) throw FileIoFailure("tooLarge")
                 output.write(buffer, 0, count)
             }
         }

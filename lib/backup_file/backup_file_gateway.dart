@@ -29,6 +29,7 @@ class BackupFileResult {
 /// Single-file transport. Does not decode backups or mutate application state.
 class BackupFileGateway {
   static const maxReadBytes = 5 * 1024 * 1024;
+  static const maxZipReadBytes = 12 * 1024 * 1024;
   final MethodChannel _channel = const MethodChannel('keep_my_car/backup_file');
 
   Future<BackupFileResult> save({
@@ -43,10 +44,14 @@ class BackupFileGateway {
 
   Future<BackupFileResult> read() => _invoke('read', null);
 
+  Future<BackupFileResult> readZip() =>
+      _invoke('read', {'profile': 'zipV1'}, maxBytes: maxZipReadBytes);
+
   Future<BackupFileResult> _invoke(
     String method,
-    Map<String, Object>? arguments,
-  ) async {
+    Map<String, Object>? arguments, {
+    int maxBytes = maxReadBytes,
+  }) async {
     try {
       // No Future.timeout: time spent in the OS picker is unlimited.
       // Android enforces the deadline only after a URI starts real I/O.
@@ -58,7 +63,7 @@ class BackupFileGateway {
           if (method == 'read') {
             final bytes = response['bytes'];
             if (bytes is! Uint8List) return _invalid();
-            if (bytes.length > maxReadBytes) {
+            if (bytes.length > maxBytes) {
               return const BackupFileResult.failure(BackupFileError.tooLarge);
             }
             return BackupFileResult._(

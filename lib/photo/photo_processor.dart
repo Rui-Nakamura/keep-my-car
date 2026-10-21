@@ -115,6 +115,24 @@ class DartPhotoProcessor implements PhotoProcessor {
   }
 }
 
+/// Backup JPEG validation only. No raw-photo deployment profile is implied;
+/// source selection/conversion stays disabled until explicitly configured.
+class StoredJpegProcessor implements PhotoProcessor {
+  @override
+  Future<Uint8List> process(
+    String sourcePath,
+    PhotoCancellation cancellation,
+  ) => Future.error(const PhotoFailure(PhotoIssue.unsupported));
+
+  @override
+  Future<void> validate(Uint8List jpeg) async {
+    if (jpeg.length > DartPhotoProcessor.maxOutputBytes) {
+      throw const PhotoFailure(PhotoIssue.outputLimit);
+    }
+    await Isolate.run(() => validatePhotoJpeg(jpeg));
+  }
+}
+
 void _convertWorker((SendPort, String, PhotoInputLimits) request) {
   final (reply, path, limits) = request;
   try {

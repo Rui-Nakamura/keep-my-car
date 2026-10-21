@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../backup/backup_import_result.dart';
+import '../backup/backup_operation_gate.dart';
 import '../domain/car_validation.dart';
 import '../domain/models/car.dart';
 import '../domain/models/plan_conditions.dart';
@@ -23,6 +24,10 @@ typedef SessionFactory = PlanSession Function(
   RestoredCarData data,
   YearMonth referenceMonth,
 );
+
+class BackupStateChanged implements Exception {
+  const BackupStateChanged();
+}
 
 class PhotoRequest {
   PhotoRequest._(this._owner, this._generation);
@@ -46,10 +51,20 @@ class PersistentPlanState extends ChangeNotifier {
   final YearMonth referenceMonth;
   final SessionFactory _sessionFactory;
   final PhotoLibrary? photos;
+  final backupOperations = BackupOperationGate();
+  int _generation = 0;
+  int get generation => _generation;
+  bool get isDisposed => _disposed;
   int _photoGeneration = 0;
   PhotoRequest? _photoRequest;
   Completer<void>? _idle;
-  StartupPhase phase = StartupPhase.loading;
+  StartupPhase _phase = StartupPhase.loading;
+  StartupPhase get phase => _phase;
+  set phase(StartupPhase value) {
+    if (_phase != value) _generation++;
+    _phase = value;
+  }
+
   PlanSession? session;
   Car? car;
   YearMonth? ownerBirthMonth;
@@ -186,8 +201,20 @@ class PersistentPlanState extends ChangeNotifier {
     }
   }
 
-  VersionProtected? versionProtection;
-  int? unsupportedBackupVersion;
+  VersionProtected? _versionProtection;
+  VersionProtected? get versionProtection => _versionProtection;
+  set versionProtection(VersionProtected? value) {
+    if (_versionProtection != value) _generation++;
+    _versionProtection = value;
+  }
+
+  int? _unsupportedBackupVersion;
+  int? get unsupportedBackupVersion => _unsupportedBackupVersion;
+  set unsupportedBackupVersion(int? value) {
+    if (_unsupportedBackupVersion != value) _generation++;
+    _unsupportedBackupVersion = value;
+  }
+
   bool get saveRestricted =>
       versionProtection != null || unsupportedBackupVersion != null;
 
@@ -235,6 +262,7 @@ class PersistentPlanState extends ChangeNotifier {
 
   Future<void> load() async {
     if (_busy || _disposed) return;
+    _generation++;
     cancelPhotoChange();
     _beginOperation();
     phase = StartupPhase.loading;
@@ -280,6 +308,7 @@ class PersistentPlanState extends ChangeNotifier {
 
   void acknowledgeRecovery() {
     if (phase == StartupPhase.recovered) {
+      _generation++;
       phase = StartupPhase.ready;
       _notify();
     }
@@ -317,9 +346,11 @@ class PersistentPlanState extends ChangeNotifier {
               version: version,
             );
           }
+          _generation++;
           _notify();
         }
         if (result.rollbackIssues.isNotEmpty) {
+          _generation++;
           phase = StartupPhase.uncertain;
           _notify();
           throw const SaveRequestFailure(uncertain: true);
@@ -328,6 +359,7 @@ class PersistentPlanState extends ChangeNotifier {
       }
       commit();
       _photoId = candidate.photoId;
+      _generation++;
       _notify();
       await _cleanupPhotoFiles();
     } finally {
@@ -341,11 +373,23 @@ class PersistentPlanState extends ChangeNotifier {
   /// Accepts the fully validated 14-A2 result. Preparation is detached from the
   /// formal state; after Safe Save only non-throwing field assignments remain.
   Future<void> restoreFromBackup(BackupImportSuccess backup) async {
+    await restoreAggregate(backup.data, photoId: null);
+  }
+
+  /// Shared complete replacement. Callers must provide the photo they prepared;
+  /// JSON deliberately passes null. Revision check and _persist guard acquisition
+  /// have no intervening await. Repository still validates the entire aggregate.
+  Future<void> restoreAggregate(
+    RestoredCarData data, {
+    required String? photoId,
+    int? expectedGeneration,
+  }) async {
     try {
-      final data = backup.data;
+      if (expectedGeneration != null && expectedGeneration != _generation) {
+        throw const BackupStateChanged();
+      }
       final RestoredCarData candidate = (
-        // External JSON backups replace the whole plan and contain no photo.
-        photoId: null,
+        photoId: photoId,
         ownerBirthMonth: data.ownerBirthMonth,
         car: data.car,
         planConditions: data.planConditions,
@@ -366,6 +410,8 @@ class PersistentPlanState extends ChangeNotifier {
           nextSession = _sessionFactory(candidate, referenceMonth);
         },
       );
+    } on BackupStateChanged {
+      rethrow;
     } on SaveRequestFailure {
       rethrow;
     } catch (_) {
@@ -402,6 +448,7 @@ class PersistentPlanState extends ChangeNotifier {
       throw const SaveRequestFailure();
     }
     cancelPhotoChange();
+    _generation++;
     _beginOperation();
     try {
       final result = await repository.discardUnreadableData();
@@ -547,6 +594,7 @@ class PersistentPlanState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _generation++;
     cancelPhotoChange();
     _disposed = true;
     super.dispose();

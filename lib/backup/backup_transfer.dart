@@ -46,6 +46,7 @@ class BackupTransfer {
 
   Future<BackupTransferResult> export() async {
     if (_busy || !state.canExportBackup) return _unavailable();
+    if (!state.backupOperations.acquire(this)) return _unavailable();
     _busy = true;
     try {
       final time = _now();
@@ -63,11 +64,13 @@ class BackupTransfer {
       );
     } finally {
       _busy = false;
+      state.backupOperations.release(this);
     }
   }
 
   Future<BackupTransferResult> readCandidate() async {
     if (_busy || !state.canRestoreBackup) return _unavailable();
+    if (!state.backupOperations.acquire(this)) return _unavailable();
     _busy = true;
     try {
       final file = await _gateway.read();
@@ -90,6 +93,7 @@ class BackupTransfer {
       );
     } finally {
       _busy = false;
+      state.backupOperations.release(this);
     }
   }
 
@@ -97,6 +101,7 @@ class BackupTransfer {
   /// confirmation simply discards the candidate, without calling restore.
   Future<BackupTransferResult> restore(BackupImportSuccess candidate) async {
     if (_busy || !state.canRestoreBackup) return _unavailable();
+    if (!state.backupOperations.acquire(this)) return _unavailable();
     _busy = true;
     try {
       await state.restoreFromBackup(candidate);
@@ -114,6 +119,7 @@ class BackupTransfer {
       );
     } finally {
       _busy = false;
+      state.backupOperations.release(this);
     }
   }
 

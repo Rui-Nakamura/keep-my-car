@@ -35,6 +35,13 @@ if ($outputCalls.Count -ne 1 -or $truncatingSave.Count -ne 1) {
     throw 'Android save must call BackupStreamIo.save with exactly one explicit openOutputStream(uri, "wt"); review wiring changes.'
 }
 Write-Output 'PASS Android source guard: explicit wt save wiring, no alternate output open'
+if ($channelSource -notmatch 'backupReadLimit\(call.arguments\)' -or
+    $channelSource -notmatch 'readLimit = requestedLimit' -or
+    $channelSource -notmatch 'val maxBytes = readLimit' -or
+    $channelSource -notmatch 'BackupStreamIo.read\(\{ resolver.openInputStream\(uri\) \}, operation.abandoned, maxBytes\)') {
+    throw 'Android read must validate and pass the fixed JSON/ZIP profile limit to stream I/O.'
+}
+Write-Output 'PASS Android source guard: validated profile reaches bounded stream read'
 $activitySource = Get-Content -LiteralPath (Join-Path (Split-Path $source) 'MainActivity.kt') -Raw
 if ($activitySource -match 'FLAG_DEBUGGABLE|BuildConfig.DEBUG' -or
     $activitySource -notmatch 'backupFileChannel = BackupFileChannel\(this, flutterEngine.dartExecutor.binaryMessenger\)') {

@@ -8,8 +8,11 @@ The final UI is Step 14-D. The fixed-byte C2 Dart entrypoint has been removed.
 
 Android registers `keep_my_car/backup_file` in debug and release. Its only methods
 are save/read. Save requests `openOutputStream(uri, "wt")` without fallback and
-requires write, flush and close. Read requires EOF and close, permits exactly
-5 MiB and rejects any additional byte. No metadata query or storage permissions
+requires write, flush and close. Read requires EOF and close. Legacy JSON read
+with null arguments permits exactly 5 MiB; `readZip()` sends the fixed
+`{"profile":"zipV1"}` profile and permits exactly 12 MiB. Unknown profiles,
+extra keys and arbitrary limits are rejected. The native stream and Dart receiver
+both enforce the selected limit. No metadata query or storage permissions
 are used. The picker has no timeout; URI-selected I/O has a 60-second monotonic
 deadline. Timeout/cleanup reject late success, and the process gate stays busy
 until the worker exits. Existing request watermark and lifecycle protection remain.
@@ -17,6 +20,12 @@ Provider compliance with truncation and remote synchronization are not guarantee
 
 Export uses `application/octet-stream` to preserve the custom `.kmcbackup` name;
 Import selects a single openable `*/*` file and validates its contents.
+
+`ZipBackupTransfer` exposes prepare/confirm/cancel technical APIs and shares the
+state-owned operation gate with JSON transfers. ZIP save uses `application/zip`
+and a `.zip` filename. The completed ZIP UI is a separate F-Impl-06 task; iOS
+native file I/O is not implemented. Provider failure/interruption can leave a
+partial external file; no automatic deletion/retry or atomic-save claim is made.
 
 Run from the repository root:
 

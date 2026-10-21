@@ -17,6 +17,21 @@ class PhotoLease {
   }
 }
 
+enum BackupPhotoStatus {
+  available,
+  missing,
+  corrupt,
+  ioFailure,
+  unsafe,
+  unavailable,
+}
+
+class BackupPhotoRead {
+  const BackupPhotoRead(this.status, [this.jpeg]);
+  final BackupPhotoStatus status;
+  final Uint8List? jpeg;
+}
+
 /// Own one instance per photo directory. Preparation leases protect files until
 /// the caller has either finished Safe Save or abandoned its request. Export can
 /// use the same lease API without implementing export here.
@@ -31,6 +46,10 @@ class PhotoLibrary {
         storage: IoPhotoFileStorage.applicationSupport(),
         processor: DartPhotoProcessor(limits),
       );
+  factory PhotoLibrary.backupApplicationSupport() => PhotoLibrary(
+    storage: IoPhotoFileStorage.applicationSupport(),
+    processor: StoredJpegProcessor(),
+  );
   final PhotoFileStorage storage;
   final PhotoProcessor processor;
   final String Function() _newId;
@@ -82,6 +101,23 @@ class PhotoLibrary {
     String id,
     String sourcePath,
     PhotoCancellation cancellation,
+  ) => _prepare(
+    id,
+    () => processor.process(sourcePath, cancellation),
+    cancellation,
+  );
+
+  /// Caller holds an outer lease until Safe Save/abandonment. No recompression.
+  Future<void> prepareJpeg(
+    String id,
+    Uint8List jpeg,
+    PhotoCancellation cancellation,
+  ) => _prepare(id, () async => jpeg, cancellation);
+
+  Future<void> _prepare(
+    String id,
+    Future<Uint8List> Function() source,
+    PhotoCancellation cancellation,
   ) async {
     final lease = await acquireLease(id, cancellation: cancellation);
     if (_preparing.containsKey(id)) {
@@ -91,7 +127,8 @@ class PhotoLibrary {
     final done = Completer<void>();
     _preparing[id] = done;
     try {
-      final jpeg = await processor.process(sourcePath, cancellation);
+      cancellation.check();
+      final jpeg = await source();
       cancellation.check();
       await storage.writeNew(id, jpeg, processor);
       cancellation.check();
@@ -99,6 +136,37 @@ class PhotoLibrary {
       _preparing.remove(id);
       done.complete();
       lease.release();
+    }
+  }
+
+  /// Narrow diagnostic contract for backup. Legacy read() keeps its semantics.
+  Future<BackupPhotoRead> readForBackup(String id) async {
+    PhotoLease? lease;
+    try {
+      lease = await acquireLease(id);
+      while (_preparing.containsKey(id)) {
+        await _preparing[id]!.future;
+      }
+      final bytes = await storage.read(id);
+      if (bytes == null) {
+        return const BackupPhotoRead(BackupPhotoStatus.missing);
+      }
+      await processor.validate(bytes);
+      return BackupPhotoRead(
+        BackupPhotoStatus.available,
+        Uint8List.fromList(bytes).asUnmodifiableView(),
+      );
+    } on FileSystemException {
+      return const BackupPhotoRead(BackupPhotoStatus.ioFailure);
+    } on PhotoFailure catch (error) {
+      return BackupPhotoRead(switch (error.issue) {
+        PhotoIssue.invalidImage ||
+        PhotoIssue.outputLimit => BackupPhotoStatus.corrupt,
+        PhotoIssue.unsafePath => BackupPhotoStatus.unsafe,
+        _ => BackupPhotoStatus.unavailable,
+      });
+    } finally {
+      lease?.release();
     }
   }
 

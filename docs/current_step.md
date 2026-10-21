@@ -1079,6 +1079,45 @@ Step 13・14から持ち越した画面の見やすさ、入力の分かりや�
 - F-Impl-04への技術引継ぎ：公開APIがFutureを返しても、展開・JSON・hash・写真検証等の重い処理は内部で同期実行される。App統合時はメインIsolateをブロックしない構成を検討・検証する。
 - F-Impl-04／06のエラー文言：宣言サイズより実出力が長い場合も`sizeLimit`となり得るため、単に「ファイル容量が大きすぎます」と断定しない文言を設計する。
 
+## Step 15-F-Impl-04：ZIP Export／Import技術統合・Android先行
+
+本節はF-Impl-03のCodecを既存写真管理・Persistence・Safe Save／Recoveryへ接続する仕様。ZIP形式・容量・承認済みDeflate B案は変更しない。旧JSON Backup v1／v2、JSON ImportのphotoId=null完全置換、将来version保護を維持する。
+
+### 技術APIと確認契約
+
+- `ZipBackupTransfer.prepareExport()` は写真なし／写真付きの`exportReady`、欠損／破損だけの`photoConfirmation`、または型付き失敗を返す。snapshotと写真leaseは最初のawait前に捕捉し、途中で最新計画を混ぜない。写真bytes取得後は専有・変更不能なbytesを保持し、ファイルleaseを解放できる。
+- `PhotoLibrary.readForBackup()` はavailable／missing／corrupt／ioFailure／unsafe／unavailableを区別する。I/O障害、安全性不明、写真管理未注入を写真省略確認へ進めない。OSのtype判定だけで欠損と断定せず、欠損pathのOSエラーを確認する。既存`read()`のnull契約は維持する。
+- `writeExport(token, approvePhotoOmission: ...)` は保持した候補だけを書き出す。写真欠損・破損時は明示承認が必須で、拒否・取消では外部保存しない。正式計画と元photoIdは変更しない。承認後の通常編集と並行するExportは、捕捉済みの計画・写真を使用する。
+- `readImport()` は上限付き読込みとZIP全体検証後だけ`importConfirmation`を返す。確認情報には置換内容の変更不能なpreview、写真有無、opaque tokenを含め、JPEGと適用候補は操作管理側で保持する。適用APIは外部から作った候補を受け取らない。
+- `confirmImport(token)` は完全置換を行う。写真ありは新UUIDとleaseのもとで`prepareJpeg()`により既存写真書込み・再検証を行い、再圧縮しない。写真なしは新aggregateのphotoId=nullとする。旧JSON復元後に写真を追加する二段階保存は行わない。
+- Stateの`restoreAggregate()` は既存`_persist`を共用する。保存前に次PlanSessionを構築し、Repositoryの全aggregate検証・Safe Saveを経て、Saved後だけ全正式値と写真参照を一括採用する。通常入力の現在月依存validationをBackupに追加適用しない。
+- `generation`は正式保存、reload開始・再採用、Recovery等のphase変化、version保護変化、破棄・disposeを反映する単調増加値。確認tokenはidentityによる一回限りの情報であり、取消、更新、reload、保護状態変化、dispose後の再使用を拒否する。`conflict`は再確認が必要な結果とし、候補を勝手に適用しない。
+- 世代照合からState保存排他取得までawaitを挟まない。写真準備後にも照合し、更新されていればImportしない。正式復元受理時に古い写真要求を失効させる。旧JSON／ZIP TransferはState所有の`BackupOperationGate`を共有し、重複操作を拒否する。ファイル選択・確認待ちで通常編集のState保存排他を長時間保持しない。
+- 確認待ちを終了する側は`cancel()`を呼ぶ。workerやOS I/O中の取消は結果不採用であり、実処理終了まで共有gateを保つ。既にSafe Saveへ受理済みの保存は完了させ、取消要求を拒否する。disposeは未受理の遅延結果を適用させず、受理済み保存のrollbackを意味しない。
+
+### 写真・Safe Save／Recoveryの保証範囲
+
+- 写真準備完了前に計画を保存しない。新写真の外側leaseをSafe Save完了または候補放棄まで保持する。API例外だけを根拠に新写真を直接削除せず、既存cleanupの参照検査に委ねる。
+- 旧写真はcurrent／backup／leaseから保護する。rollback失敗時のuncertain、JSONが不正・future・読取不能の場合のcleanup停止、Recoveryのcurrent優先・tmp非採用を維持する。cleanup失敗は成功した保存を失敗へ変更しない。
+- 正式JSON昇格前の異常終了では旧計画、昇格後では新計画が読み込まれ得る。初回保存の昇格前はNoDataとなり得る。成功通知前でも旧計画へ必ず戻る保証はなく、電源断を含む写真・JSON一体の完全transaction保証は追加しない。
+
+### I/O・worker・本番構築
+
+- 既存Android SAF／Platform Channelを共用する。旧JSONの引数なしreadは5MiBを維持し、`readZip()`の固定`zipV1` profileだけ12MiBとする。任意上限・未知profile・余分な引数を拒否し、Native実ストリームとDart受信側の双方で制限する。
+- ZIP保存はapplication/zipと技術的な既定.zip名を使う。既存の明示wt、write／flush／close、選択待ちtimeoutなし、URI取得後I/O60秒、遅延成功拒否・Native gateを維持する。外部Providerへの直接書込みで部分ファイルが残り得る。atomic保存・媒体反映は保証せず、自動削除・自動再試行はしない。
+- `ZipBackupWorker`でEncode／Decode全体を標準Isolateへ分離し、複数workerインスタンスの重いZIP処理も直列化する。workerへ渡すのは計画値とbytesだけで、State・Repository・PhotoLibrary・MethodChannelを渡さない。取消はworker強制終了を意味しない。
+- 本番mainは`PhotoLibrary.backupApplicationSupport()`を注入し、StateとZIP操作管理で同一Libraryのlease／cleanupを共有する。StoredJpegProcessorは規定内JPEG検証だけを許可し、原写真の選択・変換はunsupportedとする。将来の本番PhotoInputLimitsを暗黙に確定しない。
+- 本番構成ではPhotoLibraryを有効化しているため、通常の計画保存成功後も既存の写真cleanupを実行する。cleanup完了まで保存処理が継続し、その間の別保存は既存のbusy／SaveRequestFailure契約に従う。
+- iOS Nativeの外部ファイルI/Oは未実装であり、未対応環境のGatewayはplatformFailureを返す。iOS実装は別途明示承認を要する追加実装工程であり、最終受入だけで未実装を完了扱いにしない。
+
+### 工程境界・受入
+
+- F-Impl-04は技術API、確認情報受渡し、Android I/O、依存注入、Isolate、正常・失敗・競合・中断状態からのRecoveryの自動テストを対象とする。Codec内部の安全検証を呼出し側へ重複実装しない。
+- F-Impl-06はZIPボタン・完成版画面・確認dialog・結果表示・通知・文字サイズ・誤操作防止と旧JSON機能の画面上の整理を扱う。今回これらのUIは追加しない。
+- F-Impl-08は実Provider、実機中断・再起動・Recovery、ピークメモリ、UI応答性、連続操作、実ファイル保護と手元UXの総合受入を扱う。PC自動検査は実機受入の代替にしない。
+
+---
+
 # Phase 05 Step 14 — Manual Export / Import・データ可搬性設計
 
 ## Status
