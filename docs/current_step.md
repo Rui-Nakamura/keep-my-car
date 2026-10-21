@@ -1,6 +1,6 @@
 # Phase 05 Step 15 — MVP情報設計・機能優先順位再整理
 
-Status：Step 15-Aの影響調査、Step 15-Bの計算の土台、Step 15-CのHome新設計、およびStep 15-D3まで正式完了。Step 15-E-3の主要Android技術受入、Backup v2 Export／Import・再起動後PersistenceはPO承認済みPASS。特殊ケースの実機未実施範囲と手元UXの改善事項は下記E-3受入記録に従う。Step 15-F-Impl-01（内部Persistence v3・互換性維持）は正式完了。現在のF-Impl-02は下記承認済み仕様に従う写真保存・Recovery安全管理基盤の実装・検証工程であり、本番UIには未接続。本番入力profileの確定とAndroid／iOS実機受入は未完了で、基盤実装・自動検査をこれらの正式受入完了とは扱わない。Fの写真UI・Picker・ZIP Backup等の後続工程とは区別する。各工程の当時の受入記録と持ち越し事項は履歴として維持する。
+Status：Step 15-Aの影響調査、Step 15-Bの計算の土台、Step 15-CのHome新設計、およびStep 15-D3まで正式完了。Step 15-E-3の主要Android技術受入、Backup v2 Export／Import・再起動後PersistenceはPO承認済みPASS。特殊ケースの実機未実施範囲と手元UXの改善事項は下記E-3受入記録に従う。Step 15-F-Impl-01（内部Persistence v3・互換性維持）とF-Impl-02（写真保存・Recovery安全管理基盤）は正式完了。本番入力profileの確定とAndroid／iOS実機受入は後続へ引き継ぎ、基盤実装・自動検査をこれらの正式受入完了とは扱わない。F-Impl-03のZIP Backup Codecは下記承認済み仕様に従い、Export／Import統合・写真UI・Picker等の後続工程とは区別する。各工程の当時の受入記録と持ち越し事項は履歴として維持する。
 
 D1由来の後続UX課題は下記「後続課題」の引継ぎ先に従う。青／緑輪郭通知を含むStep 15-F対象のUI/UXはFで再評価し、D1〜D3の正式完了判定・既存受入結果は変更しない。
 
@@ -1039,6 +1039,45 @@ Step 13・14から持ち越した画面の見やすさ、入力の分かりや�
 - 後続の正式受入では、実写真・形式差を含む端末メモリ計測に基づく本番入力profile、Android／iOSでの写真ファイル保存・再起動・Recovery・OSバックアップ復元、F-Impl-06の写真UI接続をそれぞれ確認する。PC自動検査や画像縮小倍率の検証だけでこれらをPASSとはしない。
 
 ---
+
+## Step 15-F-Impl-03：ZIP Backup v1 Codec・安全検証
+
+### 責務と外部契約
+
+- PO承認済みの本工程はメモリ内Codecと検証だけを扱う。Decode成功はImport成功ではない。Picker、Export先選択、Import適用、UUID生成・写真配置、Persistence置換、Safe Save／Recovery接続、UI、Platform設定は後続工程とする。既存JSON Backup v1／v2の寛容な未知キー処理は変更しない。
+- `ZipBackupCodec.encode` は計画と任意JPEGからStored ZIPを生成する。`decode` は全検証後だけ計画（photoId=null）と任意JPEGを返す。結果のJPEGは変更不能な専有bytes。両APIは非同期、失敗は構造不正／未対応ZIP／容量超過／manifest不正／整合性不正／Plan不正／写真不正／未対応versionを区別する。ファイルI/O・正式データ変更は行わない。
+- ZIPの固定ファイル集合は `manifest.json`、`plan.json`、任意の `photo.jpg`（2～3通常ファイル）。名前は完全一致とし、パス正規化で救済しない。
+- ZIP全体12MiB、展開後合計16MiB、manifest 32KiB、plan 5MiB、photo 3MiB（MiB=1,048,576 bytes）。宣言サイズを展開前に検査し、実出力は書込み前にも制限する。宣言値だけを根拠にbufferを確保しない。実長と宣言長の一致、展開bytesのCRC32を各entryで検証する。
+
+### 外部Plan Schema v1（内部Persistence v3から独立）
+
+- 外部v1は既存JSON Backup v2のdata相当。明示adapterで既存Payload規則**v2**へ対応させる。内部versionやphotoIdを出力しない。内部versionの更新で外部schemaを自動更新しない。
+- rootの必須キーは `ownerBirthMonth`、`car`、`planConditions`、`plannedExpenses`。
+- carの必須キーは `name`、`firstRegistrationMonth`、`currentMileageKm`、`mileageCheckedMonth`、`annualMileageKm`。
+- planConditionsの必須キーは `fundingPlanEnabled`、`currentMileageKm`、`annualMileageKm`、`ownershipTargetAge`、`currentCarFundYen`、`reserveTargetAge`、`largeRepairReserveYen`。
+- plannedExpensesは空配列可。各Objectの必須キーは `id`、`name`、`amountYen`、`plannedMonth`、`basis`、`memo`、`status`。memoだけString/null可。他の全フィールドはnull不可。
+- 年月はASCII YYYY-MM（0000年も従来どおり）。名称・Domain不変条件は既存mapperを再利用する。距離はInteger 0～2,000,000、年間距離0～200,000、年齢0～100、金額0～1,000,000,000。fundingPlanEnabledはBoolean。idはInteger、負数・0可、重複不可。basisはquoted／selfEstimate／placeholder、statusはplanned／completed。
+- 資金計画OFFの保持値、予定費IDとList順・同月順、memo=null、過去年月、年齢の大小関係の既存許容範囲を維持し、CarとPlanConditionsの距離一致を検証する。
+- ZIP専用JSON入口はUTF-8厳密検証、BOMなし、Object、必須キー・型・未知キー・重複キーを検証する。深さは契約上の最大3コンテナまで。文字列とescapeを認識する小さな走査でObject別重複キーを検査し、構文自体は標準jsonDecodeで検証する。
+
+### manifestとZIP受入profile
+
+- manifestの必須キーは `format`（固定文字列keep-my-car-zip-backup）、`formatVersion`（Integer 1）、`planSchemaVersion`（Integer 1）、`hasPhoto`（Boolean）、`files`（Object）。未知・重複キーは拒否し、将来versionはunsupportedとする。
+- 未対応versionとして分類できるのは、v1のZIP構成とmanifestの基本キー構造に適合する入力に限る。将来versionでファイル集合・manifestキー構造が変わると、`invalidZip`／`invalidManifest`となる場合がある。いずれも候補の受入を拒否し、既存データを変更しない。Backup format v2設計時にversion識別の優先順位を再検討する。
+- filesはplan.jsonと、hasPhoto=true時だけphoto.jpg。各値の必須キーは `sizeBytes`（非負Integer）、`sha256`（小文字16進64文字）。manifest自身は含めない。集合・サイズ・写真有無をZIPと照合する。SHA-256は再serializeせず展開した原bytesを使う。SHAは署名・作成者認証ではない。
+- ZipDecoderへの無条件入力を避け、固定profileのCentral Directory／Local Header／EOCDを事前検査する。件数・境界・名前・flags・方式・version・日時・CRC・サイズを照合する。local領域は先頭0からCentral Directoryまで隙間・重複なく連続し、Central Directoryの終端はEOCDと一致する。
+- Stored／Deflateのみ。flagsはUTF-8、descriptor、Deflateの圧縮optionだけ許容。暗号化、ZIP64、分割ZIP、directory・symlinkその他特殊属性、重複・追加entry、不正パス、先頭／末尾余分bytesを拒否する。Extra FieldはLocal／Centralとも空を要求する。
+- 生成はArchiveFile.bytes、非暗号化、ZIP64・Extra・descriptor・コメントなし。出力後も構造と12MiB上限を検査する。読込みはsignature付き32bit descriptorのみ許容し、CRC・サイズをCentralと照合する。descriptor利用時のLocal CRC／サイズは0またはCentral一致値。entry／ZIPコメントは宣言境界と終端を検査して無視する。
+- JPEGは既存validatePhotoJpegで非加工検証する。最大3MiB・長辺1600px、完全decode、不要メタデータ・末尾bytes拒否。不正画像の変換救済や正式保存をしない。
+
+### B案と受入条件
+
+- PO承認済みB案ではDeflateの厳密な正常終端到達・圧縮入力完全消費の証明を必須としない。archive／Dart公開APIにその保証はなく、独自Deflateや別ライブラリを追加しない。検出可能な破損は拒否し、書込み前容量制限、実長、CRC、SHA、構造、Plan、写真検証は緩和しない。終端情報欠損や余剰圧縮bytesが同一内容へ展開され、全整合性検証を通過する場合が残存する。
+- native自動テストでは、全Plan bytesを含むraw Stored blockのBFINALを0にした入力、およびraw Stored blockを含む正常なDeflate streamに3bytes（0x11、0x22、0x33）を付加した入力の受入を確認した。いずれも出力長・CRC・SHAは元のPlanと一致する。出力が欠損する切断、破損block、サイズ・CRC・SHA不一致は拒否する。これを全Deflate実装・全端末での終端判定保証へ一般化しない。
+- 自動受入はStored／Deflate、写真有無、外部fixture、round trip、manifest、Domain維持、ZIP構造異常、各容量境界、虚偽サイズ・高圧縮率・展開中制限、JSON厳密検証、不正写真、失敗後再実行、既存Backup／Persistence／写真／Golden Sample回帰を対象とする。異常Deflateの検出実績とB案の限界を区別する。
+- Codecは失敗時に部分結果を返さず、正式Persistence・写真・filesystemに触れない。Android／iOSのピークメモリ・連続処理・実ファイルImportの技術受入は後続工程へ引き継ぐ。PC自動テストを実機受入の完了と扱わない。
+- F-Impl-04への技術引継ぎ：公開APIがFutureを返しても、展開・JSON・hash・写真検証等の重い処理は内部で同期実行される。App統合時はメインIsolateをブロックしない構成を検討・検証する。
+- F-Impl-04／06のエラー文言：宣言サイズより実出力が長い場合も`sizeLimit`となり得るため、単に「ファイル容量が大きすぎます」と断定しない文言を設計する。
 
 # Phase 05 Step 14 — Manual Export / Import・データ可搬性設計
 
