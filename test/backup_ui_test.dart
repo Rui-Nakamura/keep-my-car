@@ -13,6 +13,7 @@ import 'package:keep_my_car/features/home/presentation/home_screen.dart';
 import 'package:keep_my_car/features/initial_setup/presentation/initial_setup_screen.dart';
 import 'package:keep_my_car/persistence/persistence_result.dart';
 
+import 'home_test_support.dart';
 import 'persistence_app_support.dart';
 import 'persistence_app_test.dart' show tapVisible;
 
@@ -66,7 +67,7 @@ void main() {
   }
 
   Future<void> management(WidgetTester tester) async {
-    await tapVisible(tester, find.text('設定'));
+    await tapVisible(tester, homeControl('愛車の計画を見直す'));
     await tapVisible(tester, find.text('データ管理'));
   }
 
@@ -398,11 +399,11 @@ void main() {
         find.byKey(const ValueKey('screen-success-outline')),
         findsNothing,
       );
-      await tapVisible(tester, find.text('設定'));
+      await tapVisible(tester, homeControl('愛車の計画を見直す'));
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       // Editing a name rebuilds the app without issuing a new success event.
-      await tapVisible(tester, find.text('愛車名を編集'));
+      await tapHomeMenuItem(tester, '愛車名を編集');
       await tester.enterText(
         find.byKey(const ValueKey('car-name-input')),
         '復元後の愛車',

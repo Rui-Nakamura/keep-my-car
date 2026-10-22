@@ -23,12 +23,15 @@ import 'package:keep_my_car/persistence/keep_my_car_json_codec.dart';
 import 'package:keep_my_car/persistence/local_file_storage.dart';
 import 'package:keep_my_car/persistence/persistence_result.dart';
 
+import 'home_test_support.dart';
 import 'persistence_app_support.dart';
 import 'persistence_app_test.dart' show tapVisible;
 import 'plan_test_support.dart';
 import 'step15_e1_test.dart' show MemoryStorage, bytes, v2, toggle;
 
-Future<void> tap(WidgetTester t, String text) => tapVisible(t, find.text(text));
+Future<void> tap(WidgetTester t, String text) => text == '愛車名を編集'
+    ? tapHomeMenuItem(t, text)
+    : tapVisible(t, homeControl(text));
 Future<void> keyed(WidgetTester t, String key) =>
     tapVisible(t, find.byKey(ValueKey(key)));
 Future<void> enter(WidgetTester t, String key, String value) async {
@@ -39,7 +42,7 @@ Future<void> enter(WidgetTester t, String key, String value) async {
 }
 
 Future<void> openFunding(WidgetTester t) async {
-  await tap(t, '設定');
+  await tap(t, '愛車の計画を見直す');
   await keyed(t, 'open-funding-plan');
 }
 
@@ -149,7 +152,7 @@ void main() {
         KeepMyCarApp(repository: repo, now: () => DateTime(2026, 9)),
       );
       await t.pumpAndSettle();
-      await tap(t, 'すべて見る');
+      await tap(t, '愛車予定費を見る');
       await tapVisible(t, find.text('確認').first);
       expect(find.text(saveRestrictionMessage), findsOneWidget);
       expect(
@@ -491,7 +494,7 @@ void main() {
         final p = session();
         await t.pumpWidget(testApp(session: p));
         await t.pumpAndSettle();
-        await tap(t, '設定');
+        await tap(t, '愛車の計画を見直す');
         await enter(t, 'annualMileage', '9000');
         await keyed(t, 'open-funding-plan');
         expect(find.text('変更を破棄して移動しますか？'), findsOneWidget);
@@ -787,13 +790,23 @@ void main() {
         );
         await t.pumpAndSettle();
         expect(find.text(saveRestrictionMessage), findsOneWidget);
+        await openHomeMenu(t);
         expect(
           t
-              .widget<TextButton>(find.widgetWithText(TextButton, '愛車名を編集'))
-              .onPressed,
-          isNull,
+              .widget<PopupMenuItem>(
+                find.ancestor(
+                  of: find.text('愛車名を編集'),
+                  matching: find.byWidgetPredicate(
+                    (widget) => widget is PopupMenuItem,
+                  ),
+                ),
+              )
+              .enabled,
+          isFalse,
         );
-        await tap(t, '設定');
+        await t.binding.handlePopRoute();
+        await t.pumpAndSettle();
+        await tap(t, '愛車の計画を見直す');
         expect(
           t
               .widget<FilledButton>(find.byKey(const ValueKey('apply-plan')))
@@ -849,7 +862,7 @@ void main() {
       await t.pumpAndSettle();
       String key;
       if (screen == 'basic') {
-        await tap(t, '設定');
+        await tap(t, '愛車の計画を見直す');
         await enter(t, 'annualMileage', '6000');
         key = 'apply-plan';
       } else if (screen == 'funding') {
@@ -864,7 +877,7 @@ void main() {
         );
         key = '';
       } else {
-        await tap(t, '＋ 予定費を追加');
+        await tap(t, '＋ 予定費を追加する');
         await t.enterText(
           find.byKey(const ValueKey('expense-input-name')),
           '追加',

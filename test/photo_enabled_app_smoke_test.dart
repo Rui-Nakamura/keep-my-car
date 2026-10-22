@@ -14,6 +14,7 @@ import 'package:keep_my_car/persistence/persistence_result.dart';
 import 'package:keep_my_car/photo/photo_library.dart';
 import 'package:keep_my_car/photo/photo_processor.dart';
 
+import 'home_test_support.dart';
 import 'persistence/keep_my_car_repository_test.dart' show bytes;
 import 'persistence_app_test.dart' show fillSetup, tapVisible;
 import 'photo/photo_test_support.dart';
@@ -75,7 +76,7 @@ void main() {
       expect(photoStorage.files.containsKey(photoD), false);
       expect(state.canRestoreBackup, true);
 
-      await tapVisible(tester, find.text('＋ 予定費を追加'));
+      await tapVisible(tester, find.text('＋ 予定費を追加する'));
       await tester.enterText(
         find.byKey(const ValueKey('expense-input-name')),
         '写真管理構成の予定費',
@@ -90,7 +91,7 @@ void main() {
       expect(photoStorage.sweeps, hasLength(2));
       expect(state.canRestoreBackup, true);
 
-      await tapVisible(tester, find.text('愛車名を編集'));
+      await tapHomeMenuItem(tester, '愛車名を編集');
       await tester.enterText(
         find.byKey(const ValueKey('car-name-input')),
         '写真管理構成の愛車',
@@ -101,7 +102,7 @@ void main() {
       expect(state.canRestoreBackup, true);
       final formalBytes = bytes(state.snapshot);
 
-      await tapVisible(tester, find.text('設定'));
+      await tapVisible(tester, find.text('愛車の計画を見直す'));
       await tapVisible(tester, find.text('データ管理'));
       await tapVisible(tester, find.text('データを書き出す'));
       expect(exported, isNotNull);

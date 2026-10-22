@@ -71,7 +71,7 @@ void main() {
       );
       await t.pumpWidget(testApp(session: p));
       await t.pumpAndSettle();
-      await tap(t, find.text('すべて見る'));
+      await tap(t, find.text('愛車予定費を見る'));
       expect(find.text('編集'), findsOneWidget);
       await tap(t, find.text('予定費を追加'));
       await t.enterText(find.byKey(const ValueKey('expense-input-name')), '今月');
@@ -113,7 +113,7 @@ void main() {
       await tap(t, find.text('保有目標を見直す'));
       await validTarget(t);
       await tap(t, find.byKey(const ValueKey('apply-plan')));
-      await tap(t, find.text('すべて見る'));
+      await tap(t, find.text('愛車予定費を見る'));
       expect(find.text('計画外の予定費：1件'), findsOneWidget);
       expect(
         t

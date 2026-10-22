@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'home_test_support.dart';
 import 'persistence_app_support.dart';
 
 import 'package:keep_my_car/app/app.dart';
@@ -200,7 +201,7 @@ void main() {
         '80,000円',
       ],
     ),
-    ('すべて見る', '愛車予定費', ['6件の予定']),
+    ('愛車予定費を見る', '愛車予定費', ['6件の予定']),
     (
       '詳しく見る',
       '大型修理への備え',
@@ -221,7 +222,7 @@ void main() {
       ],
     ),
     (
-      '設定',
+      '愛車の計画を見直す',
       '計画設定',
       ['車・所有計画', '現在走行距離', '年間走行距離', '資金計画（任意）', '資金計画を利用しています', 'この試算に反映'],
     ),
@@ -251,7 +252,7 @@ void main() {
           if (destination.$1 == '詳しく見る') {
             await openReserveForTest(tester);
           } else {
-            final link = find.text(destination.$1);
+            final link = homeControl(destination.$1);
             await tester.ensureVisible(link);
             await tester.pumpAndSettle();
             await tester.tap(link);
@@ -306,7 +307,7 @@ void main() {
             isA<HomeScreen>(),
           );
           expect(find.byType(AppBar), findsNothing);
-          for (final label in ['70歳まで乗る計画', 'あと13年7か月']) {
+          for (final label in ['70歳', 'あと13年7か月']) {
             expect(find.text(label), findsOneWidget);
           }
           expect(tester.takeException(), isNull);

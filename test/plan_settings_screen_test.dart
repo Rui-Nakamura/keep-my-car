@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'home_test_support.dart';
 import 'persistence_app_support.dart';
 
 import 'package:keep_my_car/app/plan_session.dart';
@@ -9,8 +10,8 @@ import 'plan_test_support.dart';
 
 Finder input(String field) => find.byKey(ValueKey('input-$field'));
 Future<void> openSettings(WidgetTester tester) async {
-  await tester.ensureVisible(find.text('設定'));
-  await tester.tap(find.text('設定'));
+  await tester.ensureVisible(homeControl('愛車の計画を見直す'));
+  await tester.tap(homeControl('愛車の計画を見直す'));
   await tester.pumpAndSettle();
 }
 
@@ -57,7 +58,7 @@ void main() {
         plan.conditions,
         conditions(mileage: 50000, annual: 6000, ownership: 80),
       );
-      expect(find.text('80歳まで乗る計画'), findsOneWidget);
+      expect(find.text('80歳'), findsOneWidget);
       expect(find.text('66歳までに大型修理用として3,000,000円を備える'), findsNothing);
       expect(find.byKey(const ValueKey('home-update')), findsOneWidget);
       expect(plan.timelinePending, isTrue);
@@ -97,7 +98,7 @@ void main() {
       }
       await apply(tester);
       expect(plan.conditions, conditions(mileage: 0, annual: 0));
-      expect(find.text('70歳まで乗る計画'), findsOneWidget);
+      expect(find.text('70歳'), findsOneWidget);
     },
   );
 
@@ -199,7 +200,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await enter(tester, 'currentMileage', '2000000');
       await apply(tester);
-      expect(find.text('70歳まで乗る計画'), findsOneWidget);
+      expect(find.text('70歳'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

@@ -9,6 +9,7 @@ import 'package:keep_my_car/features/home/presentation/home_screen.dart';
 import 'package:keep_my_car/features/initial_setup/presentation/initial_setup_screen.dart';
 import 'package:keep_my_car/persistence/persistence_result.dart';
 
+import 'home_test_support.dart';
 import 'persistence_app_support.dart';
 
 Future<void> boot(WidgetTester tester, TestRepository repo) async {
@@ -55,7 +56,7 @@ void main() {
       final before = tester.widget<HomeScreen>(find.byType(HomeScreen));
       final oldCar = before.car;
       final oldResults = before.session.timeline;
-      await tapVisible(tester, find.text('設定'));
+      await tapVisible(tester, find.text('愛車の計画を見直す'));
       final input = find.byKey(const ValueKey('input-currentMileage'));
       await tester.ensureVisible(input);
       await tester.enterText(input, '50000');
@@ -85,7 +86,7 @@ void main() {
             .widget<HomeScreen>(find.byType(HomeScreen))
             .session;
         final list = before.plannedExpenses;
-        await tapVisible(tester, find.text('すべて見る'));
+        await tapVisible(tester, find.text('愛車予定費を見る'));
         await tapVisible(
           tester,
           operation == 'add'
@@ -124,7 +125,7 @@ void main() {
       final pending = Completer<SaveResult>();
       repo.onSave = (_) => pending.future;
       await boot(tester, repo);
-      await tapVisible(tester, find.text('愛車名を編集'));
+      await tapHomeMenuItem(tester, '愛車名を編集');
       await tester.enterText(
         find.byKey(const ValueKey('car-name-input')),
         '保存候補',
@@ -299,7 +300,7 @@ void main() {
         final repo = TestRepository(Loaded(sampleSnapshot()))
           ..saveResult = saveFailure(uncertain: true);
         await boot(tester, repo);
-        await tapVisible(tester, find.text('愛車名を編集'));
+        await tapHomeMenuItem(tester, '愛車名を編集');
         await tester.enterText(
           find.byKey(const ValueKey('car-name-input')),
           '候補',
@@ -335,7 +336,7 @@ void main() {
       final repo = TestRepository(Loaded(sampleSnapshot()))
         ..saveResult = saveFailure();
       await boot(tester, repo);
-      await tapVisible(tester, find.text('愛車名を編集'));
+      await tapHomeMenuItem(tester, '愛車名を編集');
       await tester.enterText(
         find.byKey(const ValueKey('car-name-input')),
         '候補',

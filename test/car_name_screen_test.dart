@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'home_test_support.dart';
 import 'persistence_app_support.dart';
 
 import 'package:keep_my_car/domain/car_validation.dart';
@@ -17,10 +18,7 @@ final nameInput = find.byKey(const ValueKey('car-name-input'));
 HomeScreen home(WidgetTester tester) =>
     tester.widget<HomeScreen>(find.byType(HomeScreen, skipOffstage: false));
 Future<void> openEditor(WidgetTester tester) async {
-  final button = find.widgetWithText(TextButton, '愛車名を編集');
-  await tester.ensureVisible(button);
-  await tester.tap(button);
-  await tester.pumpAndSettle();
+  await tapHomeMenuItem(tester, '愛車名を編集');
 }
 
 Future<void> save(WidgetTester tester) async {
@@ -240,7 +238,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final edit = find.widgetWithText(TextButton, '愛車名を編集');
+        final edit = find.byKey(const ValueKey('home-menu'));
         expect(tester.getSize(edit).height, greaterThanOrEqualTo(48));
         await openEditor(tester);
         tester.view.viewInsets = const FakeViewPadding(bottom: 300);
@@ -264,15 +262,14 @@ void main() {
         expect(text.overflow, isNot(TextOverflow.ellipsis));
         for (final value in [
           longName,
-          '愛車名を編集',
           '未来タイムラインを見る',
-          '＋ 予定費を追加',
-          'すべて見る',
-          '設定',
+          '＋ 予定費を追加する',
+          '愛車予定費を見る',
+          '愛車の計画を見直す',
         ]) {
-          await tester.ensureVisible(find.text(value));
+          await tester.ensureVisible(homeControl(value));
           await tester.pumpAndSettle();
-          final rect = tester.getRect(find.text(value));
+          final rect = tester.getRect(homeControl(value));
           expect(rect.left, greaterThanOrEqualTo(0));
           expect(rect.right, lessThanOrEqualTo(360));
         }

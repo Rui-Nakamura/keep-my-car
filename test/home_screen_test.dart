@@ -10,19 +10,27 @@ import 'package:keep_my_car/features/planned_expenses/presentation/planned_expen
 import 'package:keep_my_car/features/settings/presentation/plan_settings_screen.dart';
 import 'package:keep_my_car/app/screen_success_feedback.dart';
 
+import 'home_test_support.dart';
 import 'persistence_app_support.dart';
 import 'plan_test_support.dart';
 import 'app/plan_summary_test.dart' show expense;
 
 Future<void> tapLabel(WidgetTester tester, String label) async {
-  await tester.ensureVisible(find.text(label));
+  await tester.ensureVisible(homeControl(label));
   await tester.pumpAndSettle();
-  await tester.tap(find.text(label));
+  await tester.tap(homeControl(label));
   await tester.pumpAndSettle();
 }
 
 void expectNoTotals() {
-  for (final label in ['70歳までの予定費', '次の予定費', 'これからの予定費', '来年', '5年間', '0円']) {
+  for (final label in [
+    '保有目標までの合計',
+    '次の予定費',
+    'これから必要な予定費',
+    '来年',
+    '今後5年間',
+    '0円',
+  ]) {
     expect(find.text(label), findsNothing);
   }
 }
@@ -35,21 +43,21 @@ void main() {
       await tester.pumpWidget(testApp(session: plan));
       await tester.pumpAndSettle();
       for (final label in [
-        '70歳まで乗る計画',
+        '70歳',
         'あと13年7か月',
-        '保有目標時の車齢21年',
-        '約99,000km',
-        '70歳までの予定費',
+        '21年',
+        '99,333km',
+        '保有目標までの合計',
         '2,550,000円',
-        '登録している予定費の合計です',
+        '2040年4月まで\n登録している予定費の合計です',
         '次の予定費',
         '2027年4月',
         '12Vバッテリー',
-        'これからの予定費',
+        'これから必要な予定費',
         '来年',
-        '5年間',
+        '今後5年間',
         '未来タイムラインを見る',
-        '＋ 予定費を追加',
+        '＋ 予定費を追加する',
       ]) {
         expect(find.text(label), findsOneWidget);
       }
@@ -59,11 +67,14 @@ void main() {
         findsOneWidget,
       );
       expect(plan.ownershipTargetMileageKm, 99333);
-      final target = tester.widget<Text>(find.text('70歳まで乗る計画'));
+      final target = tester.widget<Text>(find.text('70歳'));
       final total = tester.widget<Text>(find.text('2,550,000円'));
-      expect(target.style!.fontSize, greaterThan(total.style!.fontSize!));
-      expect(find.widgetWithText(FilledButton, '未来タイムラインを見る'), findsOneWidget);
-      expect(find.widgetWithText(OutlinedButton, '＋ 予定費を追加'), findsOneWidget);
+      expect(
+        target.textSpan!.style!.fontSize,
+        greaterThan(total.textSpan!.style!.fontSize!),
+      );
+      expect(find.widgetWithText(TextButton, '未来タイムラインを見る'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '＋ 予定費を追加する'), findsOneWidget);
       for (final label in [
         '大型修理への備え',
         '詳しく見る',
@@ -92,7 +103,7 @@ void main() {
       await tester.pumpWidget(testApp(session: plan));
       await tester.pumpAndSettle();
       expect(find.text(entry.$3), findsOneWidget);
-      expect(find.text('＋ 予定費を追加'), findsOneWidget);
+      expect(find.text('＋ 予定費を追加する'), findsOneWidget);
     });
   }
 
@@ -114,11 +125,11 @@ void main() {
     await tester.pumpWidget(testApp(session: session(expenses: [])));
     await tester.pumpAndSettle();
     expect(find.text('予定費はまだありません'), findsOneWidget);
-    expect(find.text('70歳まで乗る計画'), findsOneWidget);
-    expect(find.text('約99,000km'), findsOneWidget);
+    expect(find.text('70歳'), findsOneWidget);
+    expect(find.text('99,333km'), findsOneWidget);
     expect(find.text('未来タイムラインを見る'), findsOneWidget);
     expectNoTotals();
-    await tapLabel(tester, '＋ 予定費を追加');
+    await tapLabel(tester, '＋ 予定費を追加する');
     expect(find.byType(PlannedExpenseEditor), findsOneWidget);
     expect(find.byType(PlannedExpensesScreen), findsNothing);
     expect(
@@ -141,7 +152,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('保有目標までの予定費はありません'), findsOneWidget);
         expect(find.text('予定費はまだありません'), findsNothing);
-        expect(find.text('＋ 予定費を追加'), findsOneWidget);
+        expect(find.text('＋ 予定費を追加する'), findsOneWidget);
         expectNoTotals();
         await tapLabel(tester, '予定費を確認する');
         expect(find.byType(PlannedExpensesScreen), findsOneWidget);
@@ -196,10 +207,10 @@ void main() {
       expect(find.text('保有目標に到達しています'), findsOneWidget);
       expect(find.text('設定していた保有目標は 2040年4月でした'), findsOneWidget);
       expect(find.text('未来タイムラインを見る'), findsOneWidget);
-      expect(find.text('＋ 予定費を追加'), findsNothing);
-      expect(find.text('70歳まで乗る計画'), findsNothing);
+      expect(find.text('＋ 予定費を追加する'), findsNothing);
+      expect(find.text('70歳'), findsNothing);
       expect(find.textContaining('車齢'), findsNothing);
-      expect(find.textContaining('想定走行距離'), findsNothing);
+      expect(find.textContaining('予想走行距離'), findsNothing);
       expectNoTotals();
       expect(find.text('予定費を確認する'), saved ? findsOneWidget : findsNothing);
       if (saved) {
@@ -249,7 +260,7 @@ void main() {
       final notification = tester
           .widget<ScreenSuccessFeedback>(find.byType(ScreenSuccessFeedback))
           .notificationId;
-      await tapLabel(tester, '＋ 予定費を追加');
+      await tapLabel(tester, '＋ 予定費を追加する');
       await tester.enterText(
         find.byKey(const ValueKey('expense-input-name')),
         '車検',
@@ -310,16 +321,16 @@ void main() {
           expect(p.overflow, isNot(TextOverflow.ellipsis));
         }
         for (final label in [
-          '愛車名を編集',
-          '設定',
+          '愛車予定費を見る',
+          '愛車の計画を見直す',
           '未来タイムラインを見る',
-          if (state != 'reached') '＋ 予定費を追加',
+          if (state != 'reached') '＋ 予定費を追加する',
           if (state == 'reached') '保有目標を見直す',
         ]) {
-          await tester.ensureVisible(find.text(label));
+          await tester.ensureVisible(homeControl(label));
           await tester.pumpAndSettle();
           final button = find.ancestor(
-            of: find.text(label),
+            of: homeControl(label),
             matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
           );
           expect(tester.getSize(button).height, greaterThanOrEqualTo(48));

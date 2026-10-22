@@ -330,6 +330,8 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
           ),
           StartupPhase.ready || StartupPhase.recovered => HomeScreen(
             car: state.car!,
+            photoId: state.photoId,
+            photos: state.photos,
             onDataManagement: openDataManagement,
             session: state.session!,
             onSaveCarName: state.saveCarName,
@@ -356,6 +358,7 @@ class _KeepMyCarAppState extends State<KeepMyCarApp> {
   Widget build(BuildContext context) => MaterialApp(
     navigatorKey: navigator,
     title: 'Keep My Car',
+    debugShowCheckedModeBanner: false,
     locale: const Locale('ja', 'JP'),
     supportedLocales: const [Locale('ja', 'JP')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,

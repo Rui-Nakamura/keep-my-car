@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'home_test_support.dart';
 import 'persistence_app_support.dart';
 
 import 'package:keep_my_car/app/plan_session.dart';
@@ -44,7 +45,9 @@ Future<void> openList(WidgetTester tester) async {
   if (home.session.plannedExpenses.isNotEmpty) {
     await tapVisible(
       tester,
-      find.text(home.session.includedExpenses.isEmpty ? '予定費を確認する' : 'すべて見る'),
+      homeControl(
+        home.session.includedExpenses.isEmpty ? '予定費を確認する' : '愛車予定費を見る',
+      ),
     );
   } else {
     // Empty Home prioritizes direct creation; test list CRUD independently.
@@ -448,7 +451,7 @@ void main() {
       await back(tester);
       calls.reset();
       for (final first in [true, false]) {
-        await tapVisible(tester, find.text('未来タイムラインを見る'));
+        await tapVisible(tester, homeControl('未来タイムラインを見る'));
         expect(find.text('車検'), findsOneWidget);
         expect(find.text('この年の予定費 1,000,000円'), findsOneWidget);
         expect(
